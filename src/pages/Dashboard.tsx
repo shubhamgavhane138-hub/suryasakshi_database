@@ -4,6 +4,7 @@ import MonthSelector from '../components/MonthSelector';
 import SilageWeightChart from '../components/dashboard/SilageWeightChart';
 import SalesPieChart from '../components/dashboard/SalesPieChart';
 import YearSelector from '../components/YearSelector';
+import RecentActivity from '../components/dashboard/RecentActivity';
 
 const Dashboard: React.FC = () => {
   return (
@@ -20,6 +21,10 @@ const Dashboard: React.FC = () => {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <SilageWeightChart />
         <SalesPieChart />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <RecentActivity />
       </div>
     </div>
   );

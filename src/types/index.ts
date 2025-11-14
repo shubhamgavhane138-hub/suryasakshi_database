@@ -1,72 +1,83 @@
-export type PaymentStatus = 'PENDING' | 'CASH' | 'ONLINE' | 'PAID';
+export type PaymentStatus = 'PENDING' | 'CASH' | 'ONLINE';
 
 export interface SilageSale {
-  S_NO: number;
-  NAME_OF_BUYER: string;
-  MOB_NO: string;
-  DATE_OF_PERCHASE: Date;
-  PRODUCT: 'SILAGE';
-  WEIGHT_KG: number;
-  RATE: number;
-  TOTAL_AMOUNT: number;
-  PAYMENT_STATUS: PaymentStatus;
-  PAID_AMOUNT: number;
-  INVOICE_NO: number;
-  ADDRESS: string;
+  id: number;
+  name_of_buyer: string;
+  mob_no: string;
+  date_of_perchase: string;
+  product: 'SILAGE';
+  weight_kg: number;
+  rate: number;
+  total_amount: number;
+  payment_status: PaymentStatus;
+  paid_amount: number;
+  invoice_no: number;
+  address: string;
 }
 
 export interface Purchase {
-  S_NO: number;
-  NAME_OF_SELLER: string;
-  MO_NO: string;
-  PURCHASE_DATE: Date;
-  PRODUCT: string;
-  AMOUNT: number;
+  id: number;
+  name_of_seller: string;
+  mo_no: string;
+  purchase_date: string;
+  product: string;
+  amount: number;
 }
 
 export interface MaizePurchase {
-  S_NO: number;
-  NAME_OF_FARMER: string;
-  DATE_OF_PURCHASE: Date;
-  ADDRESS: string;
-  PRODUCT: 'MAIZE';
-  WEIGHT_KG: number;
-  RATE_MAIZE: number;
-  TOTAL_AMOUNT: number;
-  PAYMENT_STATUS: 'PAID' | 'PENDING';
+  id: number;
+  name_of_farmer: string;
+  date_of_purchase: string;
+  address: string;
+  product: 'MAIZE';
+  weight_kg: number;
+  rate: number;
+  total_amount: number;
+  payment_status: 'PAID' | 'PENDING';
 }
 
 export interface OtherExpense {
-  S_NO: number;
-  EXPENSE_NAME: string;
-  DATE_OF_EXPENSES: Date;
-  AMOUNT: number;
-}
-
-export interface User {
-  user_id: number;
-  username: string;
-  role: 'Admin' | 'Manager' | 'EMPLOYEE';
+  id: number;
+  expense_name: string;
+  date_of_expenses: string;
+  amount: number;
 }
 
 export interface SoybeanPurchase {
-    S_NO: number;
-    NAME_0F_SALER: string;
-    DATE_OF_PURCHASE: Date;
-    PRODUCT: 'SOYABIN';
-    WEIGHT_QUINTAL: number;
-    RATE: number;
-    TOTAL_PRICE: number;
-    PAYMENT_STATUS: 'PAID' | 'PENDING';
+    id: number;
+    name_of_seller: string;
+    date_of_purchase: string;
+    product: 'SOYABIN';
+    weight_quintal: number;
+    rate: number;
+    total_price: number;
+    payment_status: 'PAID' | 'PENDING';
 }
 
 export interface SoybeanSale {
-    S_NO: number;
-    NAME_0F_BUYER: string;
-    DATE_OF_SALE: Date;
-    PRODUCT: 'SOYABIN SEED';
-    QUANTITY: number;
-    RATE: number;
-    TOTAL_PRICE: number;
-    PAYMENT_STATUS: 'PAID' | 'PENDING';
+    id: number;
+    invoice_no: number;
+    name_of_buyer: string;
+    date_of_sale: string;
+    product: 'SOYABIN SEED';
+    quantity: number;
+    rate: number;
+    total_price: number;
+    payment_status: 'PAID' | 'PENDING';
 }
+
+export interface ActivityLog {
+  id: number;
+  user_name: string;
+  action: 'created' | 'updated' | 'deleted';
+  target: string;
+  created_at: string;
+}
+
+// Types for inserting new records, where id is not required
+export type NewSilageSale = Omit<SilageSale, 'id'>;
+export type NewPurchase = Omit<Purchase, 'id'>;
+export type NewMaizePurchase = Omit<MaizePurchase, 'id'>;
+export type NewOtherExpense = Omit<OtherExpense, 'id'>;
+export type NewSoybeanPurchase = Omit<SoybeanPurchase, 'id'>;
+export type NewSoybeanSale = Omit<SoybeanSale, 'id'>;

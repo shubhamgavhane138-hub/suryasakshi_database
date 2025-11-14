@@ -9,7 +9,6 @@ import {
   Bean,
   Package,
   ShoppingCart,
-  LogOut,
   ChevronRight,
   Database
 } from 'lucide-react';
@@ -52,6 +51,7 @@ const NavItem: React.FC<{ href: string; icon: React.ElementType; label: string; 
 
 const Sidebar: React.FC = () => {
     const location = useLocation();
+
     const isSuryasakshiActive = suryasakshiFpcTables.some(item => location.pathname.startsWith(item.href) && item.href !== '/');
     const isSoyabinActive = soyabinSeedTables.some(item => location.pathname.startsWith(item.href) && item.href !== '/');
 
@@ -105,22 +105,6 @@ const Sidebar: React.FC = () => {
         </Collapsible>
 
       </nav>
-      <div className="p-4 border-t border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">
-              S
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-semibold">Shubham</p>
-              <p className="text-xs text-gray-400">Admin</p>
-            </div>
-          </div>
-          <button className="text-gray-400 hover:text-white">
-            <LogOut className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
     </aside>
   );
 };

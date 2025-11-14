@@ -29,16 +29,16 @@ const DashboardStats: React.FC = () => {
             });
         };
 
-        const currentSilageSales = filterByDate(silageSales, 'DATE_OF_PERCHASE');
-        const totalSilageWeight = currentSilageSales.reduce((sum, s) => sum + s.WEIGHT_KG, 0);
-        const totalSilageAmount = currentSilageSales.reduce((sum, s) => sum + s.TOTAL_AMOUNT, 0);
+        const currentSilageSales = filterByDate(silageSales, 'date_of_perchase');
+        const totalSilageWeight = currentSilageSales.reduce((sum, s) => sum + s.weight_kg, 0);
+        const totalSilageAmount = currentSilageSales.reduce((sum, s) => sum + s.total_amount, 0);
 
-        const currentMaizePurchases = filterByDate(maizePurchases, 'DATE_OF_PURCHASE');
-        const totalMaizeWeight = currentMaizePurchases.reduce((sum, p) => sum + p.WEIGHT_KG, 0);
-        const totalMaizeAmount = currentMaizePurchases.reduce((sum, p) => sum + p.TOTAL_AMOUNT, 0);
+        const currentMaizePurchases = filterByDate(maizePurchases, 'date_of_purchase');
+        const totalMaizeWeight = currentMaizePurchases.reduce((sum, p) => sum + p.weight_kg, 0);
+        const totalMaizeAmount = currentMaizePurchases.reduce((sum, p) => sum + p.total_amount, 0);
         
-        const currentOtherExpenses = filterByDate(otherExpenses, 'DATE_OF_EXPENSES');
-        const totalExpensesAmount = currentOtherExpenses.reduce((sum, e) => sum + e.AMOUNT, 0);
+        const currentOtherExpenses = filterByDate(otherExpenses, 'date_of_expenses');
+        const totalExpensesAmount = currentOtherExpenses.reduce((sum, e) => sum + e.amount, 0);
 
         return { totalSilageWeight, totalSilageAmount, totalMaizeWeight, totalMaizeAmount, totalExpensesAmount };
     };

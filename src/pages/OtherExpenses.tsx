@@ -10,16 +10,18 @@ import { formatCurrency } from '../lib/utils';
 import { OtherExpense } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
+import { useAuth } from '../context/AuthContext';
 import MonthSelector from '../components/MonthSelector';
 import YearSelector from '../components/YearSelector';
 
 const OtherExpensesPage: React.FC = () => {
   const dataContext = useContext(DataContext);
   const dateContext = useContext(DateContext);
+  const { user } = useAuth();
 
-  if (!dataContext || !dateContext) return <div>Loading...</div>;
+  if (!dataContext || !dateContext || !user) return <div>Loading...</div>;
 
-  const { otherExpenses, addOtherExpense, updateOtherExpense, deleteOtherExpense } = dataContext;
+  const { isLoading, otherExpenses, addOtherExpense, updateOtherExpense, deleteOtherExpense } = dataContext;
   const { selectedYear, selectedMonth } = dateContext;
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,59 +30,70 @@ const OtherExpensesPage: React.FC = () => {
 
   const filteredExpenses = useMemo(() => {
     return otherExpenses.filter(e => {
-        const expenseDate = new Date(e.DATE_OF_EXPENSES);
+        const expenseDate = new Date(e.date_of_expenses);
         const isSameYear = expenseDate.getFullYear() === selectedYear;
         const isSameMonth = selectedMonth === 12 || expenseDate.getMonth() === selectedMonth;
-        const matchesSearch = e.EXPENSE_NAME.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = e.expense_name.toLowerCase().includes(searchTerm.toLowerCase());
         return isSameYear && isSameMonth && matchesSearch;
     });
   }, [otherExpenses, searchTerm, selectedYear, selectedMonth]);
 
-  const handleSave = () => {
-    if (currentExpense) {
+  const handleSave = async () => {
+    if (currentExpense && user) {
       const updatedExpense = {
           ...currentExpense,
-          DATE_OF_EXPENSES: currentExpense.DATE_OF_EXPENSES ? new Date(currentExpense.DATE_OF_EXPENSES) : new Date(),
+          date_of_expenses: currentExpense.date_of_expenses ? new Date(currentExpense.date_of_expenses).toISOString() : new Date().toISOString(),
       };
-      if (currentExpense.S_NO) {
-        updateOtherExpense({ ...updatedExpense } as OtherExpense);
-      } else {
-        addOtherExpense(updatedExpense);
+      try {
+        if (currentExpense.id) {
+            await updateOtherExpense({ ...updatedExpense } as OtherExpense, user);
+        } else {
+            await addOtherExpense(updatedExpense, user);
+        }
+        setIsDialogOpen(false);
+        setCurrentExpense(null);
+      } catch (error) {
+        console.error("Failed to save expense:", error);
       }
-      setIsDialogOpen(false);
-      setCurrentExpense(null);
     }
   };
 
   const handleAddNew = () => {
     setCurrentExpense({
-        DATE_OF_EXPENSES: new Date(),
-        AMOUNT: 0,
+        date_of_expenses: new Date().toISOString().split('T')[0],
+        amount: 0,
     });
     setIsDialogOpen(true);
   };
 
   const handleEdit = (expense: OtherExpense) => {
-    setCurrentExpense(expense);
+    setCurrentExpense({
+        ...expense,
+        date_of_expenses: new Date(expense.date_of_expenses).toISOString().split('T')[0]
+    });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (s_no: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        deleteOtherExpense(s_no);
+        if (user) {
+            try {
+                await deleteOtherExpense(id, user);
+            } catch (error) {
+                console.error("Failed to delete expense:", error);
+            }
+        }
     }
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
-    let processedValue: string | number | Date = value;
-    if (type === 'number') {
-        processedValue = parseFloat(value) || 0;
-    } else if (type === 'date') {
-        processedValue = new Date(value);
-    }
-    setCurrentExpense(prev => ({ ...prev, [name]: processedValue }));
+    setCurrentExpense(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full">Loading data...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -114,7 +127,7 @@ const OtherExpensesPage: React.FC = () => {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3">S.No</th>
+                  <th scope="col" className="px-6 py-3">ID</th>
                   <th scope="col" className="px-6 py-3">Expense Name</th>
                   <th scope="col" className="px-6 py-3">Date</th>
                   <th scope="col" className="px-6 py-3 text-right">Amount</th>
@@ -123,11 +136,11 @@ const OtherExpensesPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredExpenses.map((expense) => (
-                  <tr key={expense.S_NO} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{expense.S_NO}</td>
-                    <td className="px-6 py-4">{expense.EXPENSE_NAME}</td>
-                    <td className="px-6 py-4">{new Date(expense.DATE_OF_EXPENSES).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(expense.AMOUNT)}</td>
+                  <tr key={expense.id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium text-gray-900">{expense.id}</td>
+                    <td className="px-6 py-4">{expense.expense_name}</td>
+                    <td className="px-6 py-4">{new Date(expense.date_of_expenses).toLocaleDateString('en-IN')}</td>
+                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(expense.amount)}</td>
                     <td className="px-6 py-4 text-center">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -139,7 +152,7 @@ const OtherExpensesPage: React.FC = () => {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEdit(expense)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(expense.S_NO)}>Delete</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(expense.id)}>Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </td>
@@ -154,20 +167,20 @@ const OtherExpensesPage: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{currentExpense?.S_NO ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
+            <DialogTitle>{currentExpense?.id ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="EXPENSE_NAME" className="text-right">Expense Name</Label>
-              <Input id="EXPENSE_NAME" name="EXPENSE_NAME" value={currentExpense?.EXPENSE_NAME || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="expense_name" className="text-right">Expense Name</Label>
+              <Input id="expense_name" name="expense_name" value={currentExpense?.expense_name || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="DATE_OF_EXPENSES" className="text-right">Date</Label>
-              <Input id="DATE_OF_EXPENSES" name="DATE_OF_EXPENSES" type="date" value={currentExpense?.DATE_OF_EXPENSES ? new Date(currentExpense.DATE_OF_EXPENSES).toISOString().split('T')[0] : ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="date_of_expenses" className="text-right">Date</Label>
+              <Input id="date_of_expenses" name="date_of_expenses" type="date" value={currentExpense?.date_of_expenses || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="AMOUNT" className="text-right">Amount</Label>
-              <Input id="AMOUNT" name="AMOUNT" type="number" value={currentExpense?.AMOUNT || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="amount" className="text-right">Amount</Label>
+              <Input id="amount" name="amount" type="number" value={currentExpense?.amount || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
           </div>
           <DialogFooter>

@@ -41,8 +41,8 @@ const SalesPieChart: React.FC = () => {
             });
         };
 
-        const silageTotal = filterSales(silageSales, 'DATE_OF_PERCHASE').reduce((sum, s) => sum + s.TOTAL_AMOUNT, 0);
-        const soybeanTotal = filterSales(soybeanSales, 'DATE_OF_SALE').reduce((sum, s) => sum + s.TOTAL_PRICE, 0);
+        const silageTotal = filterSales(silageSales, 'date_of_perchase').reduce((sum, s) => sum + s.total_amount, 0);
+        const soybeanTotal = filterSales(soybeanSales, 'date_of_sale').reduce((sum, s) => sum + s.total_price, 0);
 
         return [
             { name: 'Silage Sales', value: silageTotal },

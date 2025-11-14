@@ -18,11 +18,11 @@ const SilageWeightChart: React.FC = () => {
             "Weight (Tons)": 0,
         }));
 
-        const filteredSales = silageSales.filter(sale => new Date(sale.DATE_OF_PERCHASE).getFullYear() === selectedYear);
+        const filteredSales = silageSales.filter(sale => new Date(sale.date_of_perchase).getFullYear() === selectedYear);
 
         filteredSales.forEach(sale => {
-            const month = new Date(sale.DATE_OF_PERCHASE).getMonth();
-            const weightInTons = sale.WEIGHT_KG / 1000;
+            const month = new Date(sale.date_of_perchase).getMonth();
+            const weightInTons = sale.weight_kg / 1000;
             yearData[month]["Weight (Tons)"] += weightInTons;
         });
         

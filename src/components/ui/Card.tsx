@@ -38,4 +38,10 @@ const CardContent = ({ className, children, ...props }: React.HTMLAttributes<HTM
   </div>
 );
 
-export { Card, CardHeader, CardTitle, CardDescription, CardContent };
+const CardFooter = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex items-center p-6 pt-0', className)} {...props}>
+    {children}
+  </div>
+);
+
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter };

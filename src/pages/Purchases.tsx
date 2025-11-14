@@ -10,16 +10,18 @@ import { formatCurrency } from '../lib/utils';
 import { Purchase } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
+import { useAuth } from '../context/AuthContext';
 import MonthSelector from '../components/MonthSelector';
 import YearSelector from '../components/YearSelector';
 
 const PurchasesPage: React.FC = () => {
   const dataContext = useContext(DataContext);
   const dateContext = useContext(DateContext);
+  const { user } = useAuth();
 
-  if (!dataContext || !dateContext) return <div>Loading...</div>;
+  if (!dataContext || !dateContext || !user) return <div>Loading...</div>;
 
-  const { purchases, addPurchase, updatePurchase, deletePurchase } = dataContext;
+  const { isLoading, purchases, addPurchase, updatePurchase, deletePurchase } = dataContext;
   const { selectedYear, selectedMonth } = dateContext;
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,59 +30,70 @@ const PurchasesPage: React.FC = () => {
 
   const filteredPurchases = useMemo(() => {
     return purchases.filter(p => {
-        const purchaseDate = new Date(p.PURCHASE_DATE);
+        const purchaseDate = new Date(p.purchase_date);
         const isSameYear = purchaseDate.getFullYear() === selectedYear;
         const isSameMonth = selectedMonth === 12 || purchaseDate.getMonth() === selectedMonth;
-        const matchesSearch = p.NAME_OF_SELLER.toLowerCase().includes(searchTerm.toLowerCase()) || p.PRODUCT.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = p.name_of_seller.toLowerCase().includes(searchTerm.toLowerCase()) || p.product.toLowerCase().includes(searchTerm.toLowerCase());
         return isSameYear && isSameMonth && matchesSearch;
     });
   }, [purchases, searchTerm, selectedYear, selectedMonth]);
 
-  const handleSave = () => {
-    if (currentPurchase) {
+  const handleSave = async () => {
+    if (currentPurchase && user) {
       const updatedPurchase = {
           ...currentPurchase,
-          PURCHASE_DATE: currentPurchase.PURCHASE_DATE ? new Date(currentPurchase.PURCHASE_DATE) : new Date(),
+          purchase_date: currentPurchase.purchase_date ? new Date(currentPurchase.purchase_date).toISOString() : new Date().toISOString(),
       };
-      if (currentPurchase.S_NO) {
-        updatePurchase({ ...updatedPurchase } as Purchase);
-      } else {
-        addPurchase(updatedPurchase);
+      try {
+        if (currentPurchase.id) {
+            await updatePurchase({ ...updatedPurchase } as Purchase, user);
+        } else {
+            await addPurchase(updatedPurchase, user);
+        }
+        setIsDialogOpen(false);
+        setCurrentPurchase(null);
+      } catch (error) {
+        console.error("Failed to save purchase:", error);
       }
-      setIsDialogOpen(false);
-      setCurrentPurchase(null);
     }
   };
 
   const handleAddNew = () => {
     setCurrentPurchase({
-        PURCHASE_DATE: new Date(),
-        AMOUNT: 0,
+        purchase_date: new Date().toISOString().split('T')[0],
+        amount: 0,
     });
     setIsDialogOpen(true);
   };
 
   const handleEdit = (purchase: Purchase) => {
-    setCurrentPurchase(purchase);
+    setCurrentPurchase({
+        ...purchase,
+        purchase_date: new Date(purchase.purchase_date).toISOString().split('T')[0]
+    });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (s_no: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        deletePurchase(s_no);
+        if(user) {
+            try {
+                await deletePurchase(id, user);
+            } catch (error) {
+                console.error("Failed to delete purchase:", error);
+            }
+        }
     }
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
-    let processedValue: string | number | Date = value;
-    if (type === 'number') {
-        processedValue = parseFloat(value) || 0;
-    } else if (type === 'date') {
-        processedValue = new Date(value);
-    }
-    setCurrentPurchase(prev => ({ ...prev, [name]: processedValue }));
+    setCurrentPurchase(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full">Loading data...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -114,7 +127,7 @@ const PurchasesPage: React.FC = () => {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3">S.No</th>
+                  <th scope="col" className="px-6 py-3">ID</th>
                   <th scope="col" className="px-6 py-3">Seller Name</th>
                   <th scope="col" className="px-6 py-3">Mobile No</th>
                   <th scope="col" className="px-6 py-3">Product</th>
@@ -125,13 +138,13 @@ const PurchasesPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredPurchases.map((purchase) => (
-                  <tr key={purchase.S_NO} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{purchase.S_NO}</td>
-                    <td className="px-6 py-4">{purchase.NAME_OF_SELLER}</td>
-                    <td className="px-6 py-4">{purchase.MO_NO}</td>
-                    <td className="px-6 py-4">{purchase.PRODUCT}</td>
-                    <td className="px-6 py-4">{new Date(purchase.PURCHASE_DATE).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(purchase.AMOUNT)}</td>
+                  <tr key={purchase.id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium text-gray-900">{purchase.id}</td>
+                    <td className="px-6 py-4">{purchase.name_of_seller}</td>
+                    <td className="px-6 py-4">{purchase.mo_no}</td>
+                    <td className="px-6 py-4">{purchase.product}</td>
+                    <td className="px-6 py-4">{new Date(purchase.purchase_date).toLocaleDateString('en-IN')}</td>
+                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(purchase.amount)}</td>
                     <td className="px-6 py-4 text-center">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -143,7 +156,7 @@ const PurchasesPage: React.FC = () => {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEdit(purchase)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(purchase.S_NO)}>Delete</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(purchase.id)}>Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </td>
@@ -158,27 +171,27 @@ const PurchasesPage: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{currentPurchase?.S_NO ? 'Edit Purchase' : 'Add New Purchase'}</DialogTitle>
+            <DialogTitle>{currentPurchase?.id ? 'Edit Purchase' : 'Add New Purchase'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="NAME_OF_SELLER" className="text-right">Seller Name</Label>
-              <Input id="NAME_OF_SELLER" name="NAME_OF_SELLER" value={currentPurchase?.NAME_OF_SELLER || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="name_of_seller" className="text-right">Seller Name</Label>
+              <Input id="name_of_seller" name="name_of_seller" value={currentPurchase?.name_of_seller || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="MO_NO" className="text-right">Mobile No.</Label>
-              <Input id="MO_NO" name="MO_NO" value={currentPurchase?.MO_NO || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="mo_no" className="text-right">Mobile No.</Label>
+              <Input id="mo_no" name="mo_no" value={currentPurchase?.mo_no || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="PURCHASE_DATE" className="text-right">Date</Label>
-              <Input id="PURCHASE_DATE" name="PURCHASE_DATE" type="date" value={currentPurchase?.PURCHASE_DATE ? new Date(currentPurchase.PURCHASE_DATE).toISOString().split('T')[0] : ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="purchase_date" className="text-right">Date</Label>
+              <Input id="purchase_date" name="purchase_date" type="date" value={currentPurchase?.purchase_date || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="PRODUCT" className="text-right">Product</Label>              <Input id="PRODUCT" name="PRODUCT" value={currentPurchase?.PRODUCT || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="product" className="text-right">Product</Label>              <Input id="product" name="product" value={currentPurchase?.product || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="AMOUNT" className="text-right">Amount</Label>
-              <Input id="AMOUNT" name="AMOUNT" type="number" value={currentPurchase?.AMOUNT || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="amount" className="text-right">Amount</Label>
+              <Input id="amount" name="amount" type="number" value={currentPurchase?.amount || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
           </div>
           <DialogFooter>

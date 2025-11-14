@@ -11,16 +11,18 @@ import { formatCurrency, cn } from '../lib/utils';
 import { SilageSale, PaymentStatus } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
+import { useAuth } from '../context/AuthContext';
 import MonthSelector from '../components/MonthSelector';
 import YearSelector from '../components/YearSelector';
 
 const SilageSales: React.FC = () => {
   const dataContext = useContext(DataContext);
   const dateContext = useContext(DateContext);
+  const { user } = useAuth();
 
-  if (!dataContext || !dateContext) return <div>Loading...</div>;
+  if (!dataContext || !dateContext || !user) return <div>Loading...</div>;
 
-  const { silageSales, addSilageSale, updateSilageSale, deleteSilageSale } = dataContext;
+  const { isLoading, silageSales, addSilageSale, updateSilageSale, deleteSilageSale } = dataContext;
   const { selectedYear, selectedMonth } = dateContext;
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,72 +31,84 @@ const SilageSales: React.FC = () => {
 
   const filteredSales = useMemo(() => {
     return silageSales.filter(sale => {
-      const saleDate = new Date(sale.DATE_OF_PERCHASE);
+      const saleDate = new Date(sale.date_of_perchase);
       const isSameYear = saleDate.getFullYear() === selectedYear;
       const isSameMonth = selectedMonth === 12 || saleDate.getMonth() === selectedMonth;
-      const matchesSearch = sale.NAME_OF_BUYER.toLowerCase().includes(searchTerm.toLowerCase()) || sale.INVOICE_NO.toString().includes(searchTerm);
+      const matchesSearch = sale.name_of_buyer.toLowerCase().includes(searchTerm.toLowerCase()) || sale.invoice_no.toString().includes(searchTerm);
       return isSameYear && isSameMonth && matchesSearch;
     });
   }, [silageSales, searchTerm, selectedYear, selectedMonth]);
 
-  const handleSave = () => {
-    if (currentSale) {
-      const weight = currentSale.WEIGHT_KG || 0;
-      const rate = currentSale.RATE || 0;
+  const handleSave = async () => {
+    if (currentSale && user) {
+      const weight = currentSale.weight_kg || 0;
+      const rate = currentSale.rate || 0;
       const totalAmount = weight * rate;
       const updatedSale = {
         ...currentSale,
-        TOTAL_AMOUNT: totalAmount,
-        PAID_AMOUNT: currentSale.PAYMENT_STATUS === 'PENDING' ? 0 : currentSale.PAID_AMOUNT ?? totalAmount,
-        DATE_OF_PERCHASE: currentSale.DATE_OF_PERCHASE ? new Date(currentSale.DATE_OF_PERCHASE) : new Date(),
+        total_amount: totalAmount,
+        paid_amount: currentSale.payment_status === 'PENDING' ? 0 : currentSale.paid_amount ?? totalAmount,
+        date_of_perchase: currentSale.date_of_perchase ? new Date(currentSale.date_of_perchase).toISOString() : new Date().toISOString(),
       };
 
-      if (currentSale.S_NO) {
-        updateSilageSale({ ...updatedSale } as SilageSale);
-      } else {
-        addSilageSale(updatedSale);
+      try {
+        if (currentSale.id) {
+            await updateSilageSale({ ...updatedSale } as SilageSale, user);
+        } else {
+            await addSilageSale(updatedSale, user);
+        }
+        setIsDialogOpen(false);
+        setCurrentSale(null);
+      } catch (error) {
+        console.error("Failed to save sale:", error);
       }
-      setIsDialogOpen(false);
-      setCurrentSale(null);
     }
   };
 
   const handleAddNew = () => {
     setCurrentSale({
-        DATE_OF_PERCHASE: new Date(),
-        PAYMENT_STATUS: 'PENDING',
-        WEIGHT_KG: 0,
-        RATE: 0,
-        PAID_AMOUNT: 0,
+        date_of_perchase: new Date().toISOString().split('T')[0],
+        payment_status: 'PENDING',
+        weight_kg: 0,
+        rate: 0,
+        paid_amount: 0,
+        product: 'SILAGE',
     });
     setIsDialogOpen(true);
   };
 
   const handleEdit = (sale: SilageSale) => {
-    setCurrentSale(sale);
+    setCurrentSale({
+        ...sale,
+        date_of_perchase: new Date(sale.date_of_perchase).toISOString().split('T')[0]
+    });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (s_no: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        deleteSilageSale(s_no);
+        if (user) {
+            try {
+                await deleteSilageSale(id, user);
+            } catch (error) {
+                console.error("Failed to delete sale:", error);
+            }
+        }
     }
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
-    let processedValue: string | number | Date = value;
-    if (type === 'number') {
-        processedValue = parseFloat(value) || 0;
-    } else if (type === 'date') {
-        processedValue = new Date(value);
-    }
-    setCurrentSale(prev => ({ ...prev, [name]: processedValue }));
+    setCurrentSale(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
 
   const handleSelectChange = (value: PaymentStatus) => {
-    setCurrentSale(prev => ({...prev, PAYMENT_STATUS: value}));
+    setCurrentSale(prev => ({...prev, payment_status: value}));
   };
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full">Loading data...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -143,24 +157,24 @@ const SilageSales: React.FC = () => {
               </thead>
               <tbody>
                 {filteredSales.map((sale) => (
-                  <tr key={sale.S_NO} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">#{sale.INVOICE_NO}</td>
-                    <td className="px-6 py-4">{sale.NAME_OF_BUYER}</td>
-                    <td className="px-6 py-4">{sale.MOB_NO}</td>
-                    <td className="px-6 py-4">{new Date(sale.DATE_OF_PERCHASE).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-4">{sale.WEIGHT_KG.toFixed(2)}</td>
-                    <td className="px-6 py-4">{formatCurrency(sale.RATE)}</td>
+                  <tr key={sale.id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium text-gray-900">#{sale.invoice_no}</td>
+                    <td className="px-6 py-4">{sale.name_of_buyer}</td>
+                    <td className="px-6 py-4">{sale.mob_no}</td>
+                    <td className="px-6 py-4">{new Date(sale.date_of_perchase).toLocaleDateString('en-IN')}</td>
+                    <td className="px-6 py-4">{sale.weight_kg.toFixed(2)}</td>
+                    <td className="px-6 py-4">{formatCurrency(sale.rate)}</td>
                     <td className="px-6 py-4">
                       <span className={cn('px-2 py-1 text-xs font-medium rounded-full', {
-                        'bg-green-100 text-green-800': sale.PAYMENT_STATUS === 'CASH' || sale.PAYMENT_STATUS === 'ONLINE' || sale.PAYMENT_STATUS === 'PAID',
-                        'bg-yellow-100 text-yellow-800': sale.PAYMENT_STATUS === 'PENDING',
+                        'bg-green-100 text-green-800': sale.payment_status === 'CASH' || sale.payment_status === 'ONLINE',
+                        'bg-yellow-100 text-yellow-800': sale.payment_status === 'PENDING',
                       })}>
-                        {sale.PAYMENT_STATUS}
+                        {sale.payment_status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.TOTAL_AMOUNT)}</td>
-                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.PAID_AMOUNT)}</td>
-                    <td className="px-6 py-4 truncate max-w-xs">{sale.ADDRESS}</td>
+                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.total_amount)}</td>
+                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.paid_amount)}</td>
+                    <td className="px-6 py-4 truncate max-w-xs">{sale.address}</td>
                     <td className="px-6 py-4 text-center">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -172,7 +186,7 @@ const SilageSales: React.FC = () => {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEdit(sale)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(sale.S_NO)}>Delete</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(sale.id)}>Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </td>
@@ -187,50 +201,54 @@ const SilageSales: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{currentSale?.S_NO ? 'Edit Sale' : 'Add New Sale'}</DialogTitle>
+            <DialogTitle>{currentSale?.id ? 'Edit Sale' : 'Add New Sale'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="NAME_OF_BUYER" className="text-right">Buyer Name</Label>
-              <Input id="NAME_OF_BUYER" name="NAME_OF_BUYER" value={currentSale?.NAME_OF_BUYER || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="name_of_buyer" className="text-right">Buyer Name</Label>
+              <Input id="name_of_buyer" name="name_of_buyer" value={currentSale?.name_of_buyer || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="MOB_NO" className="text-right">Mobile No.</Label>
-              <Input id="MOB_NO" name="MOB_NO" value={currentSale?.MOB_NO || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="invoice_no" className="text-right">Invoice No.</Label>
+              <Input id="invoice_no" name="invoice_no" type="number" value={currentSale?.invoice_no || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="DATE_OF_PERCHASE" className="text-right">Date</Label>
-              <Input id="DATE_OF_PERCHASE" name="DATE_OF_PERCHASE" type="date" value={currentSale?.DATE_OF_PERCHASE ? new Date(currentSale.DATE_OF_PERCHASE).toISOString().split('T')[0] : ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="mob_no" className="text-right">Mobile No.</Label>
+              <Input id="mob_no" name="mob_no" value={currentSale?.mob_no || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="ADDRESS" className="text-right">Address</Label>
-              <Input id="ADDRESS" name="ADDRESS" value={currentSale?.ADDRESS || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="date_of_perchase" className="text-right">Date</Label>
+              <Input id="date_of_perchase" name="date_of_perchase" type="date" value={currentSale?.date_of_perchase || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="WEIGHT_KG" className="text-right">Weight (KG)</Label>
-              <Input id="WEIGHT_KG" name="WEIGHT_KG" type="number" value={currentSale?.WEIGHT_KG || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="address" className="text-right">Address</Label>
+              <Input id="address" name="address" value={currentSale?.address || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="RATE" className="text-right">Rate</Label>
-              <Input id="RATE" name="RATE" type="number" value={currentSale?.RATE || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="weight_kg" className="text-right">Weight (KG)</Label>
+              <Input id="weight_kg" name="weight_kg" type="number" value={currentSale?.weight_kg || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="TOTAL_AMOUNT" className="text-right">Total Amount</Label>
+              <Label htmlFor="rate" className="text-right">Rate</Label>
+              <Input id="rate" name="rate" type="number" value={currentSale?.rate || ''} onChange={handleFormChange} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="total_amount" className="text-right">Total Amount</Label>
                 <Input 
-                    id="TOTAL_AMOUNT" 
-                    name="TOTAL_AMOUNT" 
-                    value={formatCurrency((currentSale?.WEIGHT_KG || 0) * (currentSale?.RATE || 0))} 
+                    id="total_amount" 
+                    name="total_amount" 
+                    value={formatCurrency((currentSale?.weight_kg || 0) * (currentSale?.rate || 0))} 
                     className="col-span-3" 
                     disabled 
                 />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="PAID_AMOUNT" className="text-right">Paid Amount</Label>
-              <Input id="PAID_AMOUNT" name="PAID_AMOUNT" type="number" value={currentSale?.PAID_AMOUNT || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="paid_amount" className="text-right">Paid Amount</Label>
+              <Input id="paid_amount" name="paid_amount" type="number" value={currentSale?.paid_amount || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="PAYMENT_STATUS" className="text-right">Status</Label>
-                <Select onValueChange={handleSelectChange} value={currentSale?.PAYMENT_STATUS || ''}>
+                <Label htmlFor="payment_status" className="text-right">Status</Label>
+                <Select onValueChange={handleSelectChange} value={currentSale?.payment_status || ''}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select status" />
                     </SelectTrigger>

@@ -11,16 +11,18 @@ import { formatCurrency, cn } from '../lib/utils';
 import { SoybeanSale } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
+import { useAuth } from '../context/AuthContext';
 import MonthSelector from '../components/MonthSelector';
 import YearSelector from '../components/YearSelector';
 
 const SoybeanSalesPage: React.FC = () => {
   const dataContext = useContext(DataContext);
   const dateContext = useContext(DateContext);
+  const { user } = useAuth();
 
-  if (!dataContext || !dateContext) return <div>Loading...</div>;
+  if (!dataContext || !dateContext || !user) return <div>Loading...</div>;
 
-  const { soybeanSales, addSoybeanSale, updateSoybeanSale, deleteSoybeanSale } = dataContext;
+  const { isLoading, soybeanSales, addSoybeanSale, updateSoybeanSale, deleteSoybeanSale } = dataContext;
   const { selectedYear, selectedMonth } = dateContext;
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,65 +31,77 @@ const SoybeanSalesPage: React.FC = () => {
 
   const filteredSales = useMemo(() => {
     return soybeanSales.filter(s => {
-        const saleDate = new Date(s.DATE_OF_SALE);
+        const saleDate = new Date(s.date_of_sale);
         const isSameYear = saleDate.getFullYear() === selectedYear;
         const isSameMonth = selectedMonth === 12 || saleDate.getMonth() === selectedMonth;
-        const matchesSearch = s.NAME_0F_BUYER.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = s.name_of_buyer.toLowerCase().includes(searchTerm.toLowerCase()) || s.invoice_no.toString().includes(searchTerm);
         return isSameYear && isSameMonth && matchesSearch;
     });
   }, [soybeanSales, searchTerm, selectedYear, selectedMonth]);
 
-  const handleSave = () => {
-    if (currentSale) {
-        const quantity = currentSale.QUANTITY || 0;
-        const rate = currentSale.RATE || 0;
+  const handleSave = async () => {
+    if (currentSale && user) {
+        const quantity = currentSale.quantity || 0;
+        const rate = currentSale.rate || 0;
         const updatedSale = {
             ...currentSale,
-            TOTAL_PRICE: quantity * rate,
-            DATE_OF_SALE: currentSale.DATE_OF_SALE ? new Date(currentSale.DATE_OF_SALE) : new Date(),
+            total_price: quantity * rate,
+            date_of_sale: currentSale.date_of_sale ? new Date(currentSale.date_of_sale).toISOString() : new Date().toISOString(),
         };
 
-      if (currentSale.S_NO) {
-        updateSoybeanSale({ ...updatedSale } as SoybeanSale);
-      } else {
-        addSoybeanSale(updatedSale);
+      try {
+        if (currentSale.id) {
+            await updateSoybeanSale({ ...updatedSale } as SoybeanSale, user);
+        } else {
+            await addSoybeanSale(updatedSale, user);
+        }
+        setIsDialogOpen(false);
+        setCurrentSale(null);
+      } catch (error) {
+        console.error("Failed to save sale:", error);
       }
-      setIsDialogOpen(false);
-      setCurrentSale(null);
     }
   };
 
   const handleAddNew = () => {
     setCurrentSale({
-        DATE_OF_SALE: new Date(),
-        PAYMENT_STATUS: 'PENDING',
-        QUANTITY: 0,
-        RATE: 0,
+        date_of_sale: new Date().toISOString().split('T')[0],
+        payment_status: 'PENDING',
+        quantity: 0,
+        rate: 0,
+        product: 'SOYABIN SEED',
     });
     setIsDialogOpen(true);
   };
 
   const handleEdit = (sale: SoybeanSale) => {
-    setCurrentSale(sale);
+    setCurrentSale({
+        ...sale,
+        date_of_sale: new Date(sale.date_of_sale).toISOString().split('T')[0]
+    });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (s_no: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        deleteSoybeanSale(s_no);
+        if (user) {
+            try {
+                await deleteSoybeanSale(id, user);
+            } catch (error) {
+                console.error("Failed to delete sale:", error);
+            }
+        }
     }
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
-    let processedValue: string | number | Date = value;
-    if (type === 'number') {
-        processedValue = parseFloat(value) || 0;
-    } else if (type === 'date') {
-        processedValue = new Date(value);
-    }
-    setCurrentSale(prev => ({ ...prev, [name]: processedValue }));
+    setCurrentSale(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full">Loading data...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -109,7 +123,7 @@ const SoybeanSalesPage: React.FC = () => {
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
             <Input 
-              placeholder="Search by buyer name..." 
+              placeholder="Search by buyer or invoice..." 
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -121,7 +135,7 @@ const SoybeanSalesPage: React.FC = () => {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3">S.No</th>
+                  <th scope="col" className="px-6 py-3">Invoice</th>
                   <th scope="col" className="px-6 py-3">Buyer Name</th>
                   <th scope="col" className="px-6 py-3">Date</th>
                   <th scope="col" className="px-6 py-3">Quantity</th>
@@ -133,21 +147,21 @@ const SoybeanSalesPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredSales.map((sale) => (
-                  <tr key={sale.S_NO} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{sale.S_NO}</td>
-                    <td className="px-6 py-4">{sale.NAME_0F_BUYER}</td>
-                    <td className="px-6 py-4">{new Date(sale.DATE_OF_SALE).toLocaleDateString('en-IN')}</td>
-                    <td className="px-6 py-4">{sale.QUANTITY}</td>
-                    <td className="px-6 py-4">{formatCurrency(sale.RATE)}</td>
+                  <tr key={sale.id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium text-gray-900">#{sale.invoice_no}</td>
+                    <td className="px-6 py-4">{sale.name_of_buyer}</td>
+                    <td className="px-6 py-4">{new Date(sale.date_of_sale).toLocaleDateString('en-IN')}</td>
+                    <td className="px-6 py-4">{sale.quantity}</td>
+                    <td className="px-6 py-4">{formatCurrency(sale.rate)}</td>
                     <td className="px-6 py-4">
                       <span className={cn('px-2 py-1 text-xs font-medium rounded-full', {
-                        'bg-green-100 text-green-800': sale.PAYMENT_STATUS === 'PAID',
-                        'bg-yellow-100 text-yellow-800': sale.PAYMENT_STATUS === 'PENDING',
+                        'bg-green-100 text-green-800': sale.payment_status === 'PAID',
+                        'bg-yellow-100 text-yellow-800': sale.payment_status === 'PENDING',
                       })}>
-                        {sale.PAYMENT_STATUS}
+                        {sale.payment_status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.TOTAL_PRICE)}</td>
+                    <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.total_price)}</td>
                     <td className="px-6 py-4 text-center">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -159,7 +173,7 @@ const SoybeanSalesPage: React.FC = () => {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEdit(sale)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(sale.S_NO)}>Delete</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(sale.id)}>Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </td>
@@ -174,38 +188,42 @@ const SoybeanSalesPage: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{currentSale?.S_NO ? 'Edit Sale' : 'Add New Sale'}</DialogTitle>
+            <DialogTitle>{currentSale?.id ? 'Edit Sale' : 'Add New Sale'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="NAME_0F_BUYER" className="text-right">Buyer Name</Label>
-              <Input id="NAME_0F_BUYER" name="NAME_0F_BUYER" value={currentSale?.NAME_0F_BUYER || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="name_of_buyer" className="text-right">Buyer Name</Label>
+              <Input id="name_of_buyer" name="name_of_buyer" value={currentSale?.name_of_buyer || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="DATE_OF_SALE" className="text-right">Date</Label>
-              <Input id="DATE_OF_SALE" name="DATE_OF_SALE" type="date" value={currentSale?.DATE_OF_SALE ? new Date(currentSale.DATE_OF_SALE).toISOString().split('T')[0] : ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="invoice_no" className="text-right">Invoice No.</Label>
+              <Input id="invoice_no" name="invoice_no" type="number" value={currentSale?.invoice_no || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="QUANTITY" className="text-right">Quantity</Label>
-              <Input id="QUANTITY" name="QUANTITY" type="number" value={currentSale?.QUANTITY || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="date_of_sale" className="text-right">Date</Label>
+              <Input id="date_of_sale" name="date_of_sale" type="date" value={currentSale?.date_of_sale || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="RATE" className="text-right">Rate</Label>
-              <Input id="RATE" name="RATE" type="number" value={currentSale?.RATE || ''} onChange={handleFormChange} className="col-span-3" />
+              <Label htmlFor="quantity" className="text-right">Quantity</Label>
+              <Input id="quantity" name="quantity" type="number" value={currentSale?.quantity || ''} onChange={handleFormChange} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="TOTAL_PRICE" className="text-right">Total Price</Label>
+              <Label htmlFor="rate" className="text-right">Rate</Label>
+              <Input id="rate" name="rate" type="number" value={currentSale?.rate || ''} onChange={handleFormChange} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="total_price" className="text-right">Total Price</Label>
                 <Input 
-                    id="TOTAL_PRICE" 
-                    name="TOTAL_PRICE" 
-                    value={formatCurrency((currentSale?.QUANTITY || 0) * (currentSale?.RATE || 0))} 
+                    id="total_price" 
+                    name="total_price" 
+                    value={formatCurrency((currentSale?.quantity || 0) * (currentSale?.rate || 0))} 
                     className="col-span-3" 
                     disabled 
                 />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="PAYMENT_STATUS" className="text-right">Status</Label>
-                <Select onValueChange={(v) => setCurrentSale(p => ({...p, PAYMENT_STATUS: v as 'PAID' | 'PENDING'}))} value={currentSale?.PAYMENT_STATUS || ''}>
+                <Label htmlFor="payment_status" className="text-right">Status</Label>
+                <Select onValueChange={(v) => setCurrentSale(p => ({...p, payment_status: v as 'PAID' | 'PENDING'}))} value={currentSale?.payment_status || ''}>
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select status" />
                     </SelectTrigger>
