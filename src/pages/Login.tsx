@@ -8,21 +8,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Leaf } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const success = login(username, password);
-        if (success) {
+        setLoading(true);
+        try {
+            await login(email, password);
             navigate('/');
-        } else {
-            setError('Invalid username or password. Please try again.');
+        } catch (err: any) {
+            setError(err.message || 'Invalid login credentials. Please try again.');
             setPassword('');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -40,13 +44,13 @@ const LoginPage: React.FC = () => {
                 <CardContent>
                     <form onSubmit={handleLogin} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="username">Username</Label>
+                            <Label htmlFor="email">Email</Label>
                             <Input
-                                id="username"
-                                type="text"
-                                placeholder="e.g. SHUBHAM"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                id="email"
+                                type="email"
+                                placeholder="e.g. user@example.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 required
                                 autoFocus
                             />
@@ -63,8 +67,8 @@ const LoginPage: React.FC = () => {
                             />
                         </div>
                         {error && <p className="text-sm font-medium text-red-500">{error}</p>}
-                        <Button type="submit" className="w-full">
-                            Log In
+                        <Button type="submit" className="w-full" disabled={loading}>
+                            {loading ? 'Logging in...' : 'Log In'}
                         </Button>
                     </form>
                 </CardContent>

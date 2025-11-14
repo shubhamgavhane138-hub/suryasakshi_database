@@ -6,8 +6,8 @@ import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { PlusCircle, MoreHorizontal, Search } from 'lucide-react';
-import { formatCurrency, cn } from '../lib/utils';
+import { PlusCircle, MoreHorizontal, Search, Download } from 'lucide-react';
+import { formatCurrency, cn, exportToCsv } from '../lib/utils';
 import { SoybeanSale } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
@@ -40,7 +40,7 @@ const SoybeanSalesPage: React.FC = () => {
   }, [soybeanSales, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentSale && user) {
+    if (currentSale) {
         const quantity = currentSale.quantity || 0;
         const rate = currentSale.rate || 0;
         const updatedSale = {
@@ -51,9 +51,9 @@ const SoybeanSalesPage: React.FC = () => {
 
       try {
         if (currentSale.id) {
-            await updateSoybeanSale({ ...updatedSale } as SoybeanSale, user);
+            await updateSoybeanSale({ ...updatedSale } as SoybeanSale);
         } else {
-            await addSoybeanSale(updatedSale, user);
+            await addSoybeanSale(updatedSale);
         }
         setIsDialogOpen(false);
         setCurrentSale(null);
@@ -84,12 +84,10 @@ const SoybeanSalesPage: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        if (user) {
-            try {
-                await deleteSoybeanSale(id, user);
-            } catch (error) {
-                console.error("Failed to delete sale:", error);
-            }
+        try {
+            await deleteSoybeanSale(id);
+        } catch (error) {
+            console.error("Failed to delete sale:", error);
         }
     }
   };
@@ -97,6 +95,28 @@ const SoybeanSalesPage: React.FC = () => {
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
     setCurrentSale(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+  };
+
+  const handleDownload = () => {
+    const monthName = selectedMonth === 12 ? 'Full-Year' : new Date(0, selectedMonth).toLocaleString('default', { month: 'long' });
+    const filename = `soybean-sales-report-${monthName}-${selectedYear}.csv`;
+    
+    const headers = [
+        { key: 'invoice_no', label: 'Invoice No' },
+        { key: 'name_of_buyer', label: 'Buyer Name' },
+        { key: 'date_of_sale', label: 'Date' },
+        { key: 'quantity', label: 'Quantity' },
+        { key: 'rate', label: 'Rate' },
+        { key: 'total_price', label: 'Total Price' },
+        { key: 'payment_status', label: 'Payment Status' },
+    ] as const;
+
+    const dataToExport = filteredSales.map(s => ({
+        ...s,
+        date_of_sale: new Date(s.date_of_sale).toLocaleDateString('en-IN'),
+    }));
+
+    exportToCsv(filename, dataToExport, headers);
   };
 
   if (isLoading) {
@@ -110,6 +130,9 @@ const SoybeanSalesPage: React.FC = () => {
         <div className="flex items-center gap-2">
             <YearSelector />
             <MonthSelector />
+            <Button variant="outline" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" /> Download
+            </Button>
             <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Sale
             </Button>

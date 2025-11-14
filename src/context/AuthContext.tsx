@@ -1,59 +1,66 @@
-import React, { createContext, useState, ReactNode, useContext } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-
-// Hardcoded user credentials
-const users = {
-    'SHUBHAM': 'SHUBHAM@14',
-    'ABHISHEK': 'ABHI@37',
-    'PRASHANT': 'PRASHANT@83',
-    'OM': 'OM@66',
-    'RAMESHWAR': 'RAMESHWAR@88'
-};
-
-type User = keyof typeof users;
 
 interface AuthContextType {
     isAuthenticated: boolean;
+    session: Session | null;
     user: User | null;
-    login: (username: string, pass: string) => boolean;
-    logout: () => void;
+    login: (email: string, pass: string) => Promise<any>;
+    logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(() => {
-        const storedUser = localStorage.getItem('suryasakshi_user');
-        // Check if the stored user is a valid user
-        if (storedUser && Object.keys(users).includes(storedUser)) {
-            return storedUser as User;
-        }
-        return null;
-    });
-
+    const [session, setSession] = useState<Session | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    const login = (username: string, pass: string): boolean => {
-        const upperCaseUsername = username.toUpperCase() as User;
-        if (users[upperCaseUsername] && users[upperCaseUsername] === pass) {
-            setUser(upperCaseUsername);
-            localStorage.setItem('suryasakshi_user', upperCaseUsername);
-            return true;
-        }
-        return false;
+    useEffect(() => {
+        const getSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            setSession(session);
+            setUser(session?.user ?? null);
+            setLoading(false);
+        };
+        getSession();
+
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            setUser(session?.user ?? null);
+            setLoading(false);
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
+    }, []);
+
+    const login = async (email: string, pass: string) => {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) throw error;
+        return data;
     };
 
-    const logout = () => {
-        setUser(null);
-        localStorage.removeItem('suryasakshi_user');
+    const logout = async () => {
+        await supabase.auth.signOut();
         navigate('/login', { replace: true });
     };
 
-    const isAuthenticated = !!user;
+    const value = {
+        isAuthenticated: !!session,
+        session,
+        user,
+        login,
+        logout,
+    };
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
-            {children}
+        <AuthContext.Provider value={value}>
+            {!loading && children}
         </AuthContext.Provider>
     );
 };

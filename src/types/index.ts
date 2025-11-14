@@ -2,6 +2,7 @@ export type PaymentStatus = 'PENDING' | 'CASH' | 'ONLINE';
 
 export interface SilageSale {
   id: number;
+  user_id: string;
   name_of_buyer: string;
   mob_no: string;
   date_of_perchase: string;
@@ -17,6 +18,7 @@ export interface SilageSale {
 
 export interface Purchase {
   id: number;
+  user_id: string;
   name_of_seller: string;
   mo_no: string;
   purchase_date: string;
@@ -26,6 +28,7 @@ export interface Purchase {
 
 export interface MaizePurchase {
   id: number;
+  user_id: string;
   name_of_farmer: string;
   date_of_purchase: string;
   address: string;
@@ -38,6 +41,7 @@ export interface MaizePurchase {
 
 export interface OtherExpense {
   id: number;
+  user_id: string;
   expense_name: string;
   date_of_expenses: string;
   amount: number;
@@ -45,6 +49,7 @@ export interface OtherExpense {
 
 export interface SoybeanPurchase {
     id: number;
+    user_id: string;
     name_of_seller: string;
     date_of_purchase: string;
     product: 'SOYABIN';
@@ -56,6 +61,7 @@ export interface SoybeanPurchase {
 
 export interface SoybeanSale {
     id: number;
+    user_id: string;
     invoice_no: number;
     name_of_buyer: string;
     date_of_sale: string;
@@ -75,9 +81,9 @@ export interface ActivityLog {
 }
 
 // Types for inserting new records, where id is not required
-export type NewSilageSale = Omit<SilageSale, 'id'>;
-export type NewPurchase = Omit<Purchase, 'id'>;
-export type NewMaizePurchase = Omit<MaizePurchase, 'id'>;
-export type NewOtherExpense = Omit<OtherExpense, 'id'>;
-export type NewSoybeanPurchase = Omit<SoybeanPurchase, 'id'>;
-export type NewSoybeanSale = Omit<SoybeanSale, 'id'>;
+export type NewSilageSale = Omit<SilageSale, 'id' | 'user_id'>;
+export type NewPurchase = Omit<Purchase, 'id' | 'user_id'>;
+export type NewMaizePurchase = Omit<MaizePurchase, 'id' | 'user_id'>;
+export type NewOtherExpense = Omit<OtherExpense, 'id' | 'user_id'>;
+export type NewSoybeanPurchase = Omit<SoybeanPurchase, 'id' | 'user_id'>;
+export type NewSoybeanSale = Omit<SoybeanSale, 'id' | 'user_id'>;

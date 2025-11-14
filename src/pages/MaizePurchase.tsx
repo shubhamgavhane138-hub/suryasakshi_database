@@ -6,19 +6,21 @@ import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { PlusCircle, MoreHorizontal, Search } from 'lucide-react';
-import { formatCurrency, cn } from '../lib/utils';
+import { PlusCircle, MoreHorizontal, Search, ArrowLeft, Download } from 'lucide-react';
+import { formatCurrency, cn, exportToCsv } from '../lib/utils';
 import { MaizePurchase } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
 import { useAuth } from '../context/AuthContext';
 import MonthSelector from '../components/MonthSelector';
 import YearSelector from '../components/YearSelector';
+import { useNavigate } from 'react-router-dom';
 
 const MaizePurchasePage: React.FC = () => {
   const dataContext = useContext(DataContext);
   const dateContext = useContext(DateContext);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   if (!dataContext || !dateContext || !user) return <div>Loading...</div>;
 
@@ -40,7 +42,7 @@ const MaizePurchasePage: React.FC = () => {
   }, [maizePurchases, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentPurchase && user) {
+    if (currentPurchase) {
       const weight = currentPurchase.weight_kg || 0;
       const rate = currentPurchase.rate || 0;
       const updatedPurchase = {
@@ -51,9 +53,9 @@ const MaizePurchasePage: React.FC = () => {
 
       try {
         if (currentPurchase.id) {
-            await updateMaizePurchase({ ...updatedPurchase } as MaizePurchase, user);
+            await updateMaizePurchase({ ...updatedPurchase } as MaizePurchase);
         } else {
-            await addMaizePurchase(updatedPurchase, user);
+            await addMaizePurchase(updatedPurchase);
         }
         setIsDialogOpen(false);
         setCurrentPurchase(null);
@@ -84,12 +86,10 @@ const MaizePurchasePage: React.FC = () => {
 
   const handleDelete = async (id: number) => {
      if (window.confirm('Are you sure you want to delete this record?')) {
-        if (user) {
-            try {
-                await deleteMaizePurchase(id, user);
-            } catch (error) {
-                console.error("Failed to delete purchase:", error);
-            }
+        try {
+            await deleteMaizePurchase(id);
+        } catch (error) {
+            console.error("Failed to delete purchase:", error);
         }
     }
   };
@@ -99,6 +99,29 @@ const MaizePurchasePage: React.FC = () => {
     setCurrentPurchase(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
 
+  const handleDownload = () => {
+    const monthName = selectedMonth === 12 ? 'Full-Year' : new Date(0, selectedMonth).toLocaleString('default', { month: 'long' });
+    const filename = `maize-purchase-report-${monthName}-${selectedYear}.csv`;
+    
+    const headers = [
+        { key: 'id', label: 'ID' },
+        { key: 'name_of_farmer', label: 'Farmer Name' },
+        { key: 'date_of_purchase', label: 'Date' },
+        { key: 'address', label: 'Address' },
+        { key: 'weight_kg', label: 'Weight (KG)' },
+        { key: 'rate', label: 'Rate' },
+        { key: 'total_amount', label: 'Total Amount' },
+        { key: 'payment_status', label: 'Payment Status' },
+    ] as const;
+
+    const dataToExport = filteredPurchases.map(p => ({
+        ...p,
+        date_of_purchase: new Date(p.date_of_purchase).toLocaleDateString('en-IN'),
+    }));
+
+    exportToCsv(filename, dataToExport, headers);
+  };
+
   if (isLoading) {
     return <div className="flex justify-center items-center h-full">Loading data...</div>;
   }
@@ -106,10 +129,19 @@ const MaizePurchasePage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-3xl font-bold tracking-tight">Maize Purchase</h2>
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">Back</span>
+            </Button>
+            <h2 className="text-3xl font-bold tracking-tight">Maize Purchase</h2>
+        </div>
         <div className="flex items-center gap-2">
             <YearSelector />
             <MonthSelector />
+            <Button variant="outline" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" /> Download
+            </Button>
             <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Purchase
             </Button>

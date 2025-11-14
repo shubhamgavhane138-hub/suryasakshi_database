@@ -6,8 +6,8 @@ import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { PlusCircle, MoreHorizontal, Search } from 'lucide-react';
-import { formatCurrency, cn } from '../lib/utils';
+import { PlusCircle, MoreHorizontal, Search, Download } from 'lucide-react';
+import { formatCurrency, cn, exportToCsv } from '../lib/utils';
 import { SilageSale, PaymentStatus } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
@@ -40,7 +40,7 @@ const SilageSales: React.FC = () => {
   }, [silageSales, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentSale && user) {
+    if (currentSale) {
       const weight = currentSale.weight_kg || 0;
       const rate = currentSale.rate || 0;
       const totalAmount = weight * rate;
@@ -53,9 +53,9 @@ const SilageSales: React.FC = () => {
 
       try {
         if (currentSale.id) {
-            await updateSilageSale({ ...updatedSale } as SilageSale, user);
+            await updateSilageSale({ ...updatedSale } as SilageSale);
         } else {
-            await addSilageSale(updatedSale, user);
+            await addSilageSale(updatedSale);
         }
         setIsDialogOpen(false);
         setCurrentSale(null);
@@ -87,12 +87,10 @@ const SilageSales: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        if (user) {
-            try {
-                await deleteSilageSale(id, user);
-            } catch (error) {
-                console.error("Failed to delete sale:", error);
-            }
+        try {
+            await deleteSilageSale(id);
+        } catch (error) {
+            console.error("Failed to delete sale:", error);
         }
     }
   };
@@ -106,6 +104,31 @@ const SilageSales: React.FC = () => {
     setCurrentSale(prev => ({...prev, payment_status: value}));
   };
 
+  const handleDownload = () => {
+    const monthName = selectedMonth === 12 ? 'Full-Year' : new Date(0, selectedMonth).toLocaleString('default', { month: 'long' });
+    const filename = `silage-sales-report-${monthName}-${selectedYear}.csv`;
+    
+    const headers = [
+        { key: 'invoice_no', label: 'Invoice No' },
+        { key: 'name_of_buyer', label: 'Buyer Name' },
+        { key: 'mob_no', label: 'Mobile No' },
+        { key: 'date_of_perchase', label: 'Date' },
+        { key: 'weight_kg', label: 'Weight (KG)' },
+        { key: 'rate', label: 'Rate' },
+        { key: 'total_amount', label: 'Total Amount' },
+        { key: 'paid_amount', label: 'Paid Amount' },
+        { key: 'payment_status', label: 'Payment Status' },
+        { key: 'address', label: 'Address' },
+    ] as const;
+
+    const dataToExport = filteredSales.map(sale => ({
+        ...sale,
+        date_of_perchase: new Date(sale.date_of_perchase).toLocaleDateString('en-IN'),
+    }));
+
+    exportToCsv(filename, dataToExport, headers);
+  };
+
   if (isLoading) {
     return <div className="flex justify-center items-center h-full">Loading data...</div>;
   }
@@ -117,6 +140,9 @@ const SilageSales: React.FC = () => {
         <div className="flex items-center gap-2">
             <YearSelector />
             <MonthSelector />
+            <Button variant="outline" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" /> Download
+            </Button>
             <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Sale
             </Button>

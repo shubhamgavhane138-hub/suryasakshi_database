@@ -5,19 +5,21 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
-import { PlusCircle, MoreHorizontal, Search } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
+import { PlusCircle, MoreHorizontal, Search, ArrowLeft, Download } from 'lucide-react';
+import { formatCurrency, exportToCsv } from '../lib/utils';
 import { Purchase } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
 import { useAuth } from '../context/AuthContext';
 import MonthSelector from '../components/MonthSelector';
 import YearSelector from '../components/YearSelector';
+import { useNavigate } from 'react-router-dom';
 
 const PurchasesPage: React.FC = () => {
   const dataContext = useContext(DataContext);
   const dateContext = useContext(DateContext);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   if (!dataContext || !dateContext || !user) return <div>Loading...</div>;
 
@@ -39,16 +41,16 @@ const PurchasesPage: React.FC = () => {
   }, [purchases, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentPurchase && user) {
+    if (currentPurchase) {
       const updatedPurchase = {
           ...currentPurchase,
           purchase_date: currentPurchase.purchase_date ? new Date(currentPurchase.purchase_date).toISOString() : new Date().toISOString(),
       };
       try {
         if (currentPurchase.id) {
-            await updatePurchase({ ...updatedPurchase } as Purchase, user);
+            await updatePurchase({ ...updatedPurchase } as Purchase);
         } else {
-            await addPurchase(updatedPurchase, user);
+            await addPurchase(updatedPurchase);
         }
         setIsDialogOpen(false);
         setCurrentPurchase(null);
@@ -76,12 +78,10 @@ const PurchasesPage: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        if(user) {
-            try {
-                await deletePurchase(id, user);
-            } catch (error) {
-                console.error("Failed to delete purchase:", error);
-            }
+        try {
+            await deletePurchase(id);
+        } catch (error) {
+            console.error("Failed to delete purchase:", error);
         }
     }
   };
@@ -91,6 +91,27 @@ const PurchasesPage: React.FC = () => {
     setCurrentPurchase(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
 
+  const handleDownload = () => {
+    const monthName = selectedMonth === 12 ? 'Full-Year' : new Date(0, selectedMonth).toLocaleString('default', { month: 'long' });
+    const filename = `general-purchases-report-${monthName}-${selectedYear}.csv`;
+    
+    const headers = [
+        { key: 'id', label: 'ID' },
+        { key: 'name_of_seller', label: 'Seller Name' },
+        { key: 'mo_no', label: 'Mobile No' },
+        { key: 'product', label: 'Product' },
+        { key: 'purchase_date', label: 'Date' },
+        { key: 'amount', label: 'Amount' },
+    ] as const;
+
+    const dataToExport = filteredPurchases.map(p => ({
+        ...p,
+        purchase_date: new Date(p.purchase_date).toLocaleDateString('en-IN'),
+    }));
+
+    exportToCsv(filename, dataToExport, headers);
+  };
+
   if (isLoading) {
     return <div className="flex justify-center items-center h-full">Loading data...</div>;
   }
@@ -98,10 +119,19 @@ const PurchasesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-3xl font-bold tracking-tight">General Purchases</h2>
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">Back</span>
+            </Button>
+            <h2 className="text-3xl font-bold tracking-tight">General Purchases</h2>
+        </div>
         <div className="flex items-center gap-2">
             <YearSelector />
             <MonthSelector />
+            <Button variant="outline" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" /> Download
+            </Button>
             <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Purchase
             </Button>

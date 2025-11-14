@@ -830,7 +830,7 @@
   dependencies:
     tslib "2.8.1"
 
-"@supabase/supabase-js@^2.43.4":
+"@supabase/supabase-js@^2.81.1":
   version "2.81.1"
   resolved "https://registry.yarnpkg.com/@supabase/supabase-js/-/supabase-js-2.81.1.tgz#a501016420082b0df0600402e9b221e5ed75ab19"
   integrity sha512-KSdY7xb2L0DlLmlYzIOghdw/na4gsMcqJ8u4sD6tOQJr+x3hLujU9s4R8N3ob84/1bkvpvlU5PYKa1ae+OICnw==

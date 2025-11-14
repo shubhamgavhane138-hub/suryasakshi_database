@@ -5,8 +5,8 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
-import { PlusCircle, MoreHorizontal, Search } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
+import { PlusCircle, MoreHorizontal, Search, Download } from 'lucide-react';
+import { formatCurrency, exportToCsv } from '../lib/utils';
 import { OtherExpense } from '../types';
 import { DataContext } from '../context/DataContext';
 import { DateContext } from '../context/DateContext';
@@ -39,16 +39,16 @@ const OtherExpensesPage: React.FC = () => {
   }, [otherExpenses, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentExpense && user) {
+    if (currentExpense) {
       const updatedExpense = {
           ...currentExpense,
           date_of_expenses: currentExpense.date_of_expenses ? new Date(currentExpense.date_of_expenses).toISOString() : new Date().toISOString(),
       };
       try {
         if (currentExpense.id) {
-            await updateOtherExpense({ ...updatedExpense } as OtherExpense, user);
+            await updateOtherExpense({ ...updatedExpense } as OtherExpense);
         } else {
-            await addOtherExpense(updatedExpense, user);
+            await addOtherExpense(updatedExpense);
         }
         setIsDialogOpen(false);
         setCurrentExpense(null);
@@ -76,12 +76,10 @@ const OtherExpensesPage: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
-        if (user) {
-            try {
-                await deleteOtherExpense(id, user);
-            } catch (error) {
-                console.error("Failed to delete expense:", error);
-            }
+        try {
+            await deleteOtherExpense(id);
+        } catch (error) {
+            console.error("Failed to delete expense:", error);
         }
     }
   };
@@ -89,6 +87,25 @@ const OtherExpensesPage: React.FC = () => {
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
     setCurrentExpense(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+  };
+
+  const handleDownload = () => {
+    const monthName = selectedMonth === 12 ? 'Full-Year' : new Date(0, selectedMonth).toLocaleString('default', { month: 'long' });
+    const filename = `other-expenses-report-${monthName}-${selectedYear}.csv`;
+    
+    const headers = [
+        { key: 'id', label: 'ID' },
+        { key: 'expense_name', label: 'Expense Name' },
+        { key: 'date_of_expenses', label: 'Date' },
+        { key: 'amount', label: 'Amount' },
+    ] as const;
+
+    const dataToExport = filteredExpenses.map(e => ({
+        ...e,
+        date_of_expenses: new Date(e.date_of_expenses).toLocaleDateString('en-IN'),
+    }));
+
+    exportToCsv(filename, dataToExport, headers);
   };
 
   if (isLoading) {
@@ -102,6 +119,9 @@ const OtherExpensesPage: React.FC = () => {
         <div className="flex items-center gap-2">
             <YearSelector />
             <MonthSelector />
+            <Button variant="outline" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" /> Download
+            </Button>
             <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Expense
             </Button>

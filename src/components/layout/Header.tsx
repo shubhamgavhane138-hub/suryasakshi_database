@@ -41,7 +41,7 @@ const Header: React.FC = () => {
                             <DropdownMenuLabel className="font-normal">
                                 <div className="flex flex-col space-y-1">
                                     <p className="text-sm font-medium leading-none">Logged in as</p>
-                                    <p className="text-xs leading-none text-gray-500 capitalize">{user?.toLowerCase()}</p>
+                                    <p className="text-xs leading-none text-gray-500">{user?.email}</p>
                                 </div>
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />

@@ -13,7 +13,7 @@ const DashboardStats: React.FC = () => {
     return <div>Loading...</div>;
   }
 
-  const { silageSales, maizePurchases, otherExpenses } = dataContext;
+  const { silageSales, maizePurchases, otherExpenses, purchases } = dataContext;
   const { selectedYear, selectedMonth } = dateContext;
 
   const stats = useMemo(() => {
@@ -22,6 +22,7 @@ const DashboardStats: React.FC = () => {
     const calculateTotals = (month: number | null, year: number) => {
         const filterByDate = (items: any[], dateKey: string) => {
             return items.filter(item => {
+                if (!item[dateKey]) return false;
                 const itemDate = new Date(item[dateKey]);
                 const isSameYear = itemDate.getFullYear() === year;
                 const isSameMonth = month === null || itemDate.getMonth() === month;
@@ -30,15 +31,20 @@ const DashboardStats: React.FC = () => {
         };
 
         const currentSilageSales = filterByDate(silageSales, 'date_of_perchase');
-        const totalSilageWeight = currentSilageSales.reduce((sum, s) => sum + s.weight_kg, 0);
         const totalSilageAmount = currentSilageSales.reduce((sum, s) => sum + s.total_amount, 0);
+        const totalSilageWeight = currentSilageSales.reduce((sum, s) => sum + s.weight_kg, 0);
 
         const currentMaizePurchases = filterByDate(maizePurchases, 'date_of_purchase');
-        const totalMaizeWeight = currentMaizePurchases.reduce((sum, p) => sum + p.weight_kg, 0);
         const totalMaizeAmount = currentMaizePurchases.reduce((sum, p) => sum + p.total_amount, 0);
+        const totalMaizeWeight = currentMaizePurchases.reduce((sum, p) => sum + p.weight_kg, 0);
         
         const currentOtherExpenses = filterByDate(otherExpenses, 'date_of_expenses');
-        const totalExpensesAmount = currentOtherExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const totalOtherExpensesAmount = currentOtherExpenses.reduce((sum, e) => sum + e.amount, 0);
+        
+        const currentGeneralPurchases = filterByDate(purchases, 'purchase_date');
+        const totalGeneralPurchasesAmount = currentGeneralPurchases.reduce((sum, p) => sum + p.amount, 0);
+
+        const totalExpensesAmount = totalOtherExpensesAmount + totalGeneralPurchasesAmount;
 
         return { totalSilageWeight, totalSilageAmount, totalMaizeWeight, totalMaizeAmount, totalExpensesAmount };
     };
@@ -62,19 +68,19 @@ const DashboardStats: React.FC = () => {
     return [
       { title: 'Silage Sales', amount: formatCurrency(currentTotals.totalSilageAmount), secondaryValue: `${currentTotals.totalSilageWeight.toFixed(2)} kg`, change: getChange(currentTotals.totalSilageAmount, prevTotals.totalSilageAmount), icon: Leaf },
       { title: 'Maize Purchase', amount: formatCurrency(currentTotals.totalMaizeAmount), secondaryValue: `${currentTotals.totalMaizeWeight.toFixed(2)} kg`, change: getChange(currentTotals.totalMaizeAmount, prevTotals.totalMaizeAmount), icon: Wheat },
-      { title: 'Other Expenses', amount: formatCurrency(currentTotals.totalExpensesAmount), secondaryValue: null, change: getChange(currentTotals.totalExpensesAmount, prevTotals.totalExpensesAmount), icon: Wallet },
+      { title: 'Total Expenses', amount: formatCurrency(currentTotals.totalExpensesAmount), secondaryValue: null, change: getChange(currentTotals.totalExpensesAmount, prevTotals.totalExpensesAmount), icon: Wallet },
     ];
-  }, [selectedYear, selectedMonth, silageSales, maizePurchases, otherExpenses]);
+  }, [selectedYear, selectedMonth, silageSales, maizePurchases, otherExpenses, purchases]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {stats.map((stat) => {
-        const changeType = stat.change >= 0 ? 'increase' : 'decrease';
+        const isIncrease = stat.change >= 0;
         const comparisonText = selectedMonth === 12 ? 'from last year' : 'from last month';
         
-        const isPurchaseOrExpense = ['Maize Purchase', 'Other Expenses'].includes(stat.title);
         // For purchases/expenses, an increase is "bad" (red), a decrease is "good" (green)
-        const finalChangeType = isPurchaseOrExpense ? (changeType === 'increase' ? 'decrease' : 'increase') : changeType;
+        const isExpenseType = ['Maize Purchase', 'Total Expenses'].includes(stat.title);
+        const isGoodChange = isExpenseType ? !isIncrease : isIncrease;
 
         return (
           <Card key={stat.title}>
@@ -86,8 +92,8 @@ const DashboardStats: React.FC = () => {
               <div className="text-2xl font-bold">{stat.amount}</div>
               {stat.secondaryValue && <p className="text-xs text-gray-500">{stat.secondaryValue}</p>}
               <p className="text-xs text-gray-500 flex items-center mt-1">
-                <span className={cn('flex items-center', finalChangeType === 'increase' ? 'text-green-600' : 'text-red-600')}>
-                  {changeType === 'increase' ? <ArrowUp className="h-3 w-3 mr-1" /> : <ArrowDown className="h-3 w-3 mr-1" />}
+                <span className={cn('flex items-center', isGoodChange ? 'text-green-600' : 'text-red-600')}>
+                  {isIncrease ? <ArrowUp className="h-3 w-3 mr-1" /> : <ArrowDown className="h-3 w-3 mr-1" />}
                   {`${Math.abs(stat.change).toFixed(1)}%`} {comparisonText}
                 </span>
               </p>

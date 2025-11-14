@@ -1,7 +1,7 @@
 import { faker } from '@faker-js/faker';
 import { DollarSign, ShoppingBag, Wallet, ShoppingCart } from 'lucide-react';
 import { Transaction, StatCardData } from './types';
-import { SilageSale, MaizePurchase, OtherExpense, SoybeanPurchase, SoybeanSale, Purchase } from '../types';
+import { SilageSale, MaizePurchase, OtherExpense, SoybeanPurchase, SoybeanSale, Purchase, ActivityLog } from '../types';
 
 export const createRandomTransaction = (): Transaction => {
   return {
@@ -77,22 +77,22 @@ export const createRandomSilageSale = (): SilageSale => {
   const paymentStatus = faker.helpers.arrayElement(['PENDING', 'CASH', 'ONLINE'] as const);
   
   return {
-    S_NO: faker.number.int({ min: 1, max: 10000 }),
-    NAME_OF_BUYER: faker.person.fullName(),
-    MOB_NO: faker.phone.number(),
-    DATE_OF_PERCHASE: faker.date.recent({ days: 90 }),
-    PRODUCT: 'SILAGE',
-    WEIGHT_KG: weight,
-    RATE: rate,
-    TOTAL_AMOUNT: totalAmount,
-    PAYMENT_STATUS: paymentStatus,
-    PAID_AMOUNT: paymentStatus === 'PENDING' ? 0 : totalAmount,
-    INVOICE_NO: faker.number.int({ min: 1000, max: 9999 }),
-    ADDRESS: faker.location.streetAddress(),
+    id: faker.number.int({ min: 1, max: 10000 }),
+    name_of_buyer: faker.person.fullName(),
+    mob_no: faker.phone.number(),
+    date_of_perchase: faker.date.recent({ days: 90 }).toISOString(),
+    product: 'SILAGE',
+    weight_kg: weight,
+    rate: rate,
+    total_amount: totalAmount,
+    payment_status: paymentStatus,
+    paid_amount: paymentStatus === 'PENDING' ? 0 : totalAmount,
+    invoice_no: faker.number.int({ min: 1000, max: 9999 }),
+    address: faker.location.streetAddress(),
   };
 };
 
-export const mockSilageSales: SilageSale[] = Array.from({ length: 15 }, createRandomSilageSale);
+export const mockSilageSales: SilageSale[] = Array.from({ length: 15 }, createRandomSilageSale).sort((a,b) => new Date(b.date_of_perchase).getTime() - new Date(a.date_of_perchase).getTime());
 
 // --- Mock Data for Maize Purchase ---
 export const createRandomMaizePurchase = (): MaizePurchase => {
@@ -100,31 +100,31 @@ export const createRandomMaizePurchase = (): MaizePurchase => {
   const rate = faker.number.float({ min: 1.5, max: 3, precision: 2 });
   
   return {
-    S_NO: faker.number.int({ min: 1, max: 10000 }),
-    NAME_OF_FARMER: faker.person.fullName(),
-    DATE_OF_PURCHASE: faker.date.recent({ days: 90 }),
-    ADDRESS: faker.location.streetAddress(),
-    PRODUCT: 'MAIZE',
-    WEIGHT_KG: weight,
-    RATE_MAIZE: rate,
-    TOTAL_AMOUNT: weight * rate,
-    PAYMENT_STATUS: faker.helpers.arrayElement(['PAID', 'PENDING'] as const),
+    id: faker.number.int({ min: 1, max: 10000 }),
+    name_of_farmer: faker.person.fullName(),
+    date_of_purchase: faker.date.recent({ days: 90 }).toISOString(),
+    address: faker.location.streetAddress(),
+    product: 'MAIZE',
+    weight_kg: weight,
+    rate: rate,
+    total_amount: weight * rate,
+    payment_status: faker.helpers.arrayElement(['PAID', 'PENDING'] as const),
   };
 };
 
-export const mockMaizePurchases: MaizePurchase[] = Array.from({ length: 12 }, createRandomMaizePurchase);
+export const mockMaizePurchases: MaizePurchase[] = Array.from({ length: 12 }, createRandomMaizePurchase).sort((a,b) => new Date(b.date_of_purchase).getTime() - new Date(a.date_of_purchase).getTime());
 
 
 // --- Mock Data for Other Expenses ---
 export const createRandomOtherExpense = (): OtherExpense => {
     return {
-        S_NO: faker.number.int({ min: 1, max: 10000 }),
-        EXPENSE_NAME: faker.commerce.productName(),
-        DATE_OF_EXPENSES: faker.date.recent({ days: 90 }),
-        AMOUNT: faker.number.float({ min: 100, max: 5000, precision: 2 }),
+        id: faker.number.int({ min: 1, max: 10000 }),
+        expense_name: faker.commerce.productName(),
+        date_of_expenses: faker.date.recent({ days: 90 }).toISOString(),
+        amount: faker.number.float({ min: 100, max: 5000, precision: 2 }),
     };
 };
-export const mockOtherExpenses: OtherExpense[] = Array.from({ length: 10 }, createRandomOtherExpense);
+export const mockOtherExpenses: OtherExpense[] = Array.from({ length: 10 }, createRandomOtherExpense).sort((a,b) => new Date(b.date_of_expenses).getTime() - new Date(a.date_of_expenses).getTime());
 
 
 // --- Mock Data for Soybean Purchase ---
@@ -132,17 +132,17 @@ export const createRandomSoybeanPurchase = (): SoybeanPurchase => {
     const weight = faker.number.float({ min: 1, max: 10, precision: 2 });
     const rate = faker.number.int({ min: 4000, max: 6000 });
     return {
-        S_NO: faker.number.int({ min: 1, max: 10000 }),
-        NAME_0F_SALER: faker.person.fullName(),
-        DATE_OF_PURCHASE: faker.date.recent({ days: 90 }),
-        PRODUCT: 'SOYABIN',
-        WEIGHT_QUINTAL: weight,
-        RATE: rate,
-        TOTAL_PRICE: weight * rate,
-        PAYMENT_STATUS: faker.helpers.arrayElement(['PAID', 'PENDING'] as const),
+        id: faker.number.int({ min: 1, max: 10000 }),
+        name_of_seller: faker.person.fullName(),
+        date_of_purchase: faker.date.recent({ days: 90 }).toISOString(),
+        product: 'SOYABIN',
+        weight_quintal: weight,
+        rate: rate,
+        total_price: weight * rate,
+        payment_status: faker.helpers.arrayElement(['PAID', 'PENDING'] as const),
     };
 };
-export const mockSoybeanPurchases: SoybeanPurchase[] = Array.from({ length: 8 }, createRandomSoybeanPurchase);
+export const mockSoybeanPurchases: SoybeanPurchase[] = Array.from({ length: 8 }, createRandomSoybeanPurchase).sort((a,b) => new Date(b.date_of_purchase).getTime() - new Date(a.date_of_purchase).getTime());
 
 
 // --- Mock Data for Soybean Sales ---
@@ -150,28 +150,44 @@ export const createRandomSoybeanSale = (): SoybeanSale => {
     const quantity = faker.number.int({ min: 1, max: 20 });
     const rate = faker.number.int({ min: 5000, max: 7500 });
     return {
-        S_NO: faker.number.int({ min: 1, max: 10000 }),
-        NAME_0F_BUYER: faker.person.fullName(),
-        DATE_OF_SALE: faker.date.recent({ days: 90 }),
-        PRODUCT: 'SOYABIN SEED',
-        QUANTITY: quantity,
-        RATE: rate,
-        TOTAL_PRICE: quantity * rate,
-        PAYMENT_STATUS: faker.helpers.arrayElement(['PAID', 'PENDING'] as const),
+        id: faker.number.int({ min: 1, max: 10000 }),
+        invoice_no: faker.number.int({ min: 1000, max: 9999 }),
+        name_of_buyer: faker.person.fullName(),
+        date_of_sale: faker.date.recent({ days: 90 }).toISOString(),
+        product: 'SOYABIN SEED',
+        quantity: quantity,
+        rate: rate,
+        total_price: quantity * rate,
+        payment_status: faker.helpers.arrayElement(['PAID', 'PENDING'] as const),
     };
 };
-export const mockSoybeanSales: SoybeanSale[] = Array.from({ length: 18 }, createRandomSoybeanSale);
+export const mockSoybeanSales: SoybeanSale[] = Array.from({ length: 18 }, createRandomSoybeanSale).sort((a,b) => new Date(b.date_of_sale).getTime() - new Date(a.date_of_sale).getTime());
 
 
 // --- Mock Data for Purchases ---
 export const createRandomPurchase = (): Purchase => {
     return {
-        S_NO: faker.number.int({ min: 1, max: 10000 }),
-        NAME_OF_SELLER: faker.company.name(),
-        MO_NO: faker.phone.number(),
-        PURCHASE_DATE: faker.date.recent({ days: 90 }),
-        PRODUCT: faker.commerce.productMaterial(),
-        AMOUNT: faker.number.int({ min: 500, max: 25000 }),
+        id: faker.number.int({ min: 1, max: 10000 }),
+        name_of_seller: faker.company.name(),
+        mo_no: faker.phone.number(),
+        purchase_date: faker.date.recent({ days: 90 }).toISOString(),
+        product: faker.commerce.productMaterial(),
+        amount: faker.number.int({ min: 500, max: 25000 }),
     };
 };
-export const mockPurchases: Purchase[] = Array.from({ length: 14 }, createRandomPurchase);
+export const mockPurchases: Purchase[] = Array.from({ length: 14 }, createRandomPurchase).sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+
+// --- Mock Data for Activity Log ---
+export const createRandomActivity = (): ActivityLog => {
+    const action = faker.helpers.arrayElement(['created', 'updated', 'deleted'] as const);
+    const targetType = faker.helpers.arrayElement(['Silage Sale', 'Maize Purchase', 'Expense', 'Soybean Sale', 'Purchase']);
+    return {
+        id: faker.number.int(),
+        user_name: faker.helpers.arrayElement(['SHUBHAM', 'ABHISHEK', 'PRASHANT', 'OM', 'RAMESHWAR']),
+        action: action,
+        target: `${targetType} #${faker.string.numeric(4)}`,
+        created_at: faker.date.recent({ days: 7 }).toISOString(),
+    };
+};
+export const mockActivities: ActivityLog[] = Array.from({ length: 15 }, createRandomActivity)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
