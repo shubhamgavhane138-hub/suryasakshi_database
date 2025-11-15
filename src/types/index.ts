@@ -14,6 +14,7 @@ export interface SilageSale {
   paid_amount: number;
   invoice_no: number;
   address: string;
+  invoice_pdf_url: string | null;
 }
 
 export interface Purchase {
@@ -37,6 +38,7 @@ export interface MaizePurchase {
   rate: number;
   total_amount: number;
   payment_status: 'PAID' | 'PENDING';
+  bill_pdf_url: string | null;
 }
 
 export interface OtherExpense {

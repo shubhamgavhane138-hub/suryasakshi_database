@@ -9,13 +9,13 @@ import { useAuth } from './AuthContext';
 interface DataContextType {
     isLoading: boolean;
     silageSales: SilageSale[];
-    addSilageSale: (sale: Partial<NewSilageSale>) => Promise<void>;
-    updateSilageSale: (sale: SilageSale) => Promise<void>;
+    addSilageSale: (sale: Partial<NewSilageSale>, invoiceFile?: File | null) => Promise<void>;
+    updateSilageSale: (sale: SilageSale, invoiceFile?: File | null) => Promise<void>;
     deleteSilageSale: (id: number) => Promise<void>;
 
     maizePurchases: MaizePurchase[];
-    addMaizePurchase: (purchase: Partial<NewMaizePurchase>) => Promise<void>;
-    updateMaizePurchase: (purchase: MaizePurchase) => Promise<void>;
+    addMaizePurchase: (purchase: Partial<NewMaizePurchase>, billFile?: File | null) => Promise<void>;
+    updateMaizePurchase: (purchase: MaizePurchase, billFile?: File | null) => Promise<void>;
     deleteMaizePurchase: (id: number) => Promise<void>;
 
     otherExpenses: OtherExpense[];
@@ -116,6 +116,139 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, []);
 
+    // --- Custom CRUD for Silage Sales with File Upload ---
+    const addSilageSale = async (sale: Partial<NewSilageSale>, invoiceFile?: File | null) => {
+        if (!user) throw new Error("User not authenticated.");
+        
+        const saleToInsert: Partial<SilageSale> = { ...sale, user_id: user.id, invoice_pdf_url: null };
+
+        if (invoiceFile) {
+            const filePath = `public/${user.id}/${Date.now()}-${invoiceFile.name}`;
+            const { error: uploadError } = await supabase.storage.from('invoices').upload(filePath, invoiceFile);
+            if (uploadError) throw uploadError;
+            
+            const { data: urlData } = supabase.storage.from('invoices').getPublicUrl(filePath);
+            saleToInsert.invoice_pdf_url = urlData.publicUrl;
+        }
+
+        const { data, error } = await supabase.from('silage_sales').insert(saleToInsert).select().single();
+        if (error) throw error;
+        if (data) {
+            setSilageSales(prev => [data, ...prev]);
+            await addActivity(user.email || 'Unknown User', 'created', `Silage Sale #${data.invoice_no}`);
+        }
+    };
+
+    const updateSilageSale = async (sale: SilageSale, invoiceFile?: File | null) => {
+        if (!user) throw new Error("User not authenticated.");
+        
+        const saleToUpdate = { ...sale };
+
+        if (invoiceFile) {
+            const filePath = `public/${user.id}/${sale.id}-${invoiceFile.name}`;
+            const { error: uploadError } = await supabase.storage.from('invoices').upload(filePath, invoiceFile, { upsert: true });
+            if (uploadError) throw uploadError;
+            
+            const { data: urlData } = supabase.storage.from('invoices').getPublicUrl(filePath);
+            saleToUpdate.invoice_pdf_url = urlData.publicUrl;
+        }
+
+        const { data, error } = await supabase.from('silage_sales').update(saleToUpdate).eq('id', sale.id).select().single();
+        if (error) throw error;
+        if (data) {
+            setSilageSales(prev => prev.map(i => (i.id === sale.id ? data : i)));
+            await addActivity(user.email || 'Unknown User', 'updated', `Silage Sale #${data.invoice_no}`);
+        }
+    };
+
+    const deleteSilageSale = async (id: number) => {
+        if (!user) throw new Error("User not authenticated.");
+        
+        const { data: itemToDelete, error: fetchError } = await supabase.from('silage_sales').select('invoice_no, invoice_pdf_url').eq('id', id).single();
+        if (fetchError || !itemToDelete) throw fetchError || new Error("Item not found");
+
+        if (itemToDelete.invoice_pdf_url) {
+            const path = new URL(itemToDelete.invoice_pdf_url).pathname.split('/invoices/').pop();
+            if (path) {
+                const { error: deleteFileError } = await supabase.storage.from('invoices').remove([`public/${path}`]);
+                if (deleteFileError) console.error("Failed to delete invoice file:", deleteFileError);
+            }
+        }
+
+        const { error } = await supabase.from('silage_sales').delete().eq('id', id);
+        if (error) throw error;
+        
+        setSilageSales(prev => prev.filter(i => i.id !== id));
+        await addActivity(user.email || 'Unknown User', 'deleted', `Silage Sale #${itemToDelete.invoice_no}`);
+    };
+
+    // --- Custom CRUD for Maize Purchases with File Upload ---
+    const addMaizePurchase = async (purchase: Partial<NewMaizePurchase>, billFile?: File | null) => {
+        if (!user) throw new Error("User not authenticated.");
+        
+        const purchaseToInsert: Partial<MaizePurchase> = { ...purchase, user_id: user.id, bill_pdf_url: null };
+
+        if (billFile) {
+            const filePath = `public/${user.id}/${Date.now()}-${billFile.name}`;
+            const { error: uploadError } = await supabase.storage.from('bills').upload(filePath, billFile);
+            if (uploadError) throw uploadError;
+            
+            const { data: urlData } = supabase.storage.from('bills').getPublicUrl(filePath);
+            purchaseToInsert.bill_pdf_url = urlData.publicUrl;
+        }
+
+        const { data, error } = await supabase.from('maize_purchases').insert(purchaseToInsert).select().single();
+        if (error) throw error;
+        if (data) {
+            setMaizePurchases(prev => [data, ...prev]);
+            await addActivity(user.email || 'Unknown User', 'created', `Maize Purchase from ${data.name_of_farmer}`);
+        }
+    };
+
+    const updateMaizePurchase = async (purchase: MaizePurchase, billFile?: File | null) => {
+        if (!user) throw new Error("User not authenticated.");
+        
+        const purchaseToUpdate = { ...purchase };
+
+        if (billFile) {
+            const filePath = `public/${user.id}/${purchase.id}-${billFile.name}`;
+            const { error: uploadError } = await supabase.storage.from('bills').upload(filePath, billFile, { upsert: true });
+            if (uploadError) throw uploadError;
+            
+            const { data: urlData } = supabase.storage.from('bills').getPublicUrl(filePath);
+            purchaseToUpdate.bill_pdf_url = urlData.publicUrl;
+        }
+
+        const { data, error } = await supabase.from('maize_purchases').update(purchaseToUpdate).eq('id', purchase.id).select().single();
+        if (error) throw error;
+        if (data) {
+            setMaizePurchases(prev => prev.map(i => (i.id === purchase.id ? data : i)));
+            await addActivity(user.email || 'Unknown User', 'updated', `Maize Purchase from ${data.name_of_farmer}`);
+        }
+    };
+
+    const deleteMaizePurchase = async (id: number) => {
+        if (!user) throw new Error("User not authenticated.");
+        
+        const { data: itemToDelete, error: fetchError } = await supabase.from('maize_purchases').select('name_of_farmer, bill_pdf_url').eq('id', id).single();
+        if (fetchError || !itemToDelete) throw fetchError || new Error("Item not found");
+
+        if (itemToDelete.bill_pdf_url) {
+            const path = new URL(itemToDelete.bill_pdf_url).pathname.split('/bills/').pop();
+            if (path) {
+                const { error: deleteFileError } = await supabase.storage.from('bills').remove([`public/${path}`]);
+                if (deleteFileError) console.error("Failed to delete bill file:", deleteFileError);
+            }
+        }
+
+        const { error } = await supabase.from('maize_purchases').delete().eq('id', id);
+        if (error) throw error;
+        
+        setMaizePurchases(prev => prev.filter(i => i.id !== id));
+        await addActivity(user.email || 'Unknown User', 'deleted', `Maize Purchase from ${itemToDelete.name_of_farmer}`);
+    };
+
+    // --- Generic CRUD Factory for other tables ---
     const createCRUD = <T extends {id: number}, U>(
         tableName: string, 
         setter: React.Dispatch<React.SetStateAction<T[]>>,
@@ -154,8 +287,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { addItem, updateItem, deleteItem };
     };
 
-    const silageCRUD = createCRUD<SilageSale, Partial<NewSilageSale>>('silage_sales', setSilageSales, item => `Silage Sale #${item.invoice_no}`);
-    const maizeCRUD = createCRUD<MaizePurchase, Partial<NewMaizePurchase>>('maize_purchases', setMaizePurchases, item => `Maize Purchase from ${item.name_of_farmer}`);
     const expenseCRUD = createCRUD<OtherExpense, Partial<NewOtherExpense>>('other_expenses', setOtherExpenses, item => `Expense: ${item.expense_name}`);
     const soybeanPurchaseCRUD = createCRUD<SoybeanPurchase, Partial<NewSoybeanPurchase>>('soybean_purchases', setSoybeanPurchases, item => `Soybean Purchase from ${item.name_of_seller}`);
     const soybeanSaleCRUD = createCRUD<SoybeanSale, Partial<NewSoybeanSale>>('soybean_sales', setSoybeanSales, item => `Soybean Sale #${item.invoice_no}`);
@@ -163,8 +294,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const value = {
         isLoading,
-        silageSales, addSilageSale: silageCRUD.addItem, updateSilageSale: silageCRUD.updateItem, deleteSilageSale: silageCRUD.deleteItem,
-        maizePurchases, addMaizePurchase: maizeCRUD.addItem, updateMaizePurchase: maizeCRUD.updateItem, deleteMaizePurchase: maizeCRUD.deleteItem,
+        silageSales, addSilageSale, updateSilageSale, deleteSilageSale,
+        maizePurchases, addMaizePurchase, updateMaizePurchase, deleteMaizePurchase,
         otherExpenses, addOtherExpense: expenseCRUD.addItem, updateOtherExpense: expenseCRUD.updateItem, deleteOtherExpense: expenseCRUD.deleteItem,
         soybeanPurchases, addSoybeanPurchase: soybeanPurchaseCRUD.addItem, updateSoybeanPurchase: soybeanPurchaseCRUD.updateItem, deleteSoybeanPurchase: soybeanPurchaseCRUD.deleteItem,
         soybeanSales, addSoybeanSale: soybeanSaleCRUD.addItem, updateSoybeanSale: soybeanSaleCRUD.updateItem, deleteSoybeanSale: soybeanSaleCRUD.deleteItem,

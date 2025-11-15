@@ -6,7 +6,7 @@ import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { PlusCircle, MoreHorizontal, Search, ArrowLeft, Download } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Search, ArrowLeft, Download, FileText } from 'lucide-react';
 import { formatCurrency, cn, exportToCsv } from '../lib/utils';
 import { MaizePurchase } from '../types';
 import { DataContext } from '../context/DataContext';
@@ -30,6 +30,8 @@ const MaizePurchasePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentPurchase, setCurrentPurchase] = useState<Partial<MaizePurchase> | null>(null);
+  const [billFile, setBillFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredPurchases = useMemo(() => {
     return maizePurchases.filter(p => {
@@ -42,7 +44,8 @@ const MaizePurchasePage: React.FC = () => {
   }, [maizePurchases, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentPurchase) {
+    if (currentPurchase && !isSubmitting) {
+      setIsSubmitting(true);
       const weight = currentPurchase.weight_kg || 0;
       const rate = currentPurchase.rate || 0;
       const updatedPurchase = {
@@ -53,14 +56,18 @@ const MaizePurchasePage: React.FC = () => {
 
       try {
         if (currentPurchase.id) {
-            await updateMaizePurchase({ ...updatedPurchase } as MaizePurchase);
+            await updateMaizePurchase({ ...updatedPurchase } as MaizePurchase, billFile);
         } else {
-            await addMaizePurchase(updatedPurchase);
+            await addMaizePurchase(updatedPurchase, billFile);
         }
         setIsDialogOpen(false);
         setCurrentPurchase(null);
+        setBillFile(null);
       } catch (error) {
         console.error("Failed to save purchase:", error);
+        alert(`Error: ${(error as Error).message}`);
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -73,6 +80,7 @@ const MaizePurchasePage: React.FC = () => {
         rate: 0,
         product: 'MAIZE',
     });
+    setBillFile(null);
     setIsDialogOpen(true);
   };
 
@@ -81,11 +89,12 @@ const MaizePurchasePage: React.FC = () => {
         ...purchase,
         date_of_purchase: new Date(purchase.date_of_purchase).toISOString().split('T')[0]
     });
+    setBillFile(null);
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: number) => {
-     if (window.confirm('Are you sure you want to delete this record?')) {
+     if (window.confirm('Are you sure you want to delete this record and its bill?')) {
         try {
             await deleteMaizePurchase(id);
         } catch (error) {
@@ -97,6 +106,14 @@ const MaizePurchasePage: React.FC = () => {
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
     setCurrentPurchase(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        setBillFile(e.target.files[0]);
+    } else {
+        setBillFile(null);
+    }
   };
 
   const handleDownload = () => {
@@ -112,6 +129,7 @@ const MaizePurchasePage: React.FC = () => {
         { key: 'rate', label: 'Rate' },
         { key: 'total_amount', label: 'Total Amount' },
         { key: 'payment_status', label: 'Payment Status' },
+        { key: 'bill_pdf_url', label: 'Bill PDF URL' },
     ] as const;
 
     const dataToExport = filteredPurchases.map(p => ({
@@ -175,6 +193,7 @@ const MaizePurchasePage: React.FC = () => {
                   <th scope="col" className="px-6 py-3">Rate</th>
                   <th scope="col" className="px-6 py-3">Status</th>
                   <th scope="col" className="px-6 py-3 text-right">Total Amount</th>
+                  <th scope="col" className="px-6 py-3">Bill PDF</th>
                   <th scope="col" className="px-6 py-3 text-center">Actions</th>
                 </tr>
               </thead>
@@ -196,6 +215,15 @@ const MaizePurchasePage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right font-medium">{formatCurrency(purchase.total_amount)}</td>
+                    <td className="px-6 py-4">
+                      {purchase.bill_pdf_url ? (
+                        <a href={purchase.bill_pdf_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                          <FileText className="h-4 w-4" /> View
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-center">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -267,12 +295,28 @@ const MaizePurchasePage: React.FC = () => {
                     </SelectContent>
                 </Select>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bill_pdf" className="text-right">Bill PDF</Label>
+              <Input id="bill_pdf" name="bill_pdf" type="file" accept="application/pdf" onChange={handleFileChange} className="col-span-3 file:text-primary file:font-semibold" />
+            </div>
+            {currentPurchase?.bill_pdf_url && !billFile && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <div className="col-start-2 col-span-3">
+                        <a href={currentPurchase.bill_pdf_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                           <FileText className="h-4 w-4" /> View current bill
+                        </a>
+                        <p className="text-xs text-gray-500">To replace, choose a new file above.</p>
+                    </div>
+                </div>
+            )}
           </div>
           <DialogFooter>
              <DialogClose asChild>
-                <Button type="button" variant="secondary">Cancel</Button>
+                <Button type="button" variant="secondary" disabled={isSubmitting}>Cancel</Button>
             </DialogClose>
-            <Button type="submit" onClick={handleSave}>Save changes</Button>
+            <Button type="submit" onClick={handleSave} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save changes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

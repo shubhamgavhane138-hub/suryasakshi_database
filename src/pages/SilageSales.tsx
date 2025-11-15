@@ -6,7 +6,7 @@ import { Label } from '../components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../components/ui/Dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/ui/DropdownMenu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
-import { PlusCircle, MoreHorizontal, Search, Download } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Search, Download, FileText } from 'lucide-react';
 import { formatCurrency, cn, exportToCsv } from '../lib/utils';
 import { SilageSale, PaymentStatus } from '../types';
 import { DataContext } from '../context/DataContext';
@@ -28,6 +28,8 @@ const SilageSales: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentSale, setCurrentSale] = useState<Partial<SilageSale> | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredSales = useMemo(() => {
     return silageSales.filter(sale => {
@@ -40,7 +42,8 @@ const SilageSales: React.FC = () => {
   }, [silageSales, searchTerm, selectedYear, selectedMonth]);
 
   const handleSave = async () => {
-    if (currentSale) {
+    if (currentSale && !isSubmitting) {
+      setIsSubmitting(true);
       const weight = currentSale.weight_kg || 0;
       const rate = currentSale.rate || 0;
       const totalAmount = weight * rate;
@@ -53,14 +56,18 @@ const SilageSales: React.FC = () => {
 
       try {
         if (currentSale.id) {
-            await updateSilageSale({ ...updatedSale } as SilageSale);
+            await updateSilageSale({ ...updatedSale } as SilageSale, invoiceFile);
         } else {
-            await addSilageSale(updatedSale);
+            await addSilageSale(updatedSale, invoiceFile);
         }
         setIsDialogOpen(false);
         setCurrentSale(null);
+        setInvoiceFile(null);
       } catch (error) {
         console.error("Failed to save sale:", error);
+        alert(`Error: ${(error as Error).message}`);
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -74,6 +81,7 @@ const SilageSales: React.FC = () => {
         paid_amount: 0,
         product: 'SILAGE',
     });
+    setInvoiceFile(null);
     setIsDialogOpen(true);
   };
 
@@ -82,11 +90,12 @@ const SilageSales: React.FC = () => {
         ...sale,
         date_of_perchase: new Date(sale.date_of_perchase).toISOString().split('T')[0]
     });
+    setInvoiceFile(null);
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this record?')) {
+    if (window.confirm('Are you sure you want to delete this record and its invoice?')) {
         try {
             await deleteSilageSale(id);
         } catch (error) {
@@ -98,6 +107,14 @@ const SilageSales: React.FC = () => {
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
     setCurrentSale(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        setInvoiceFile(e.target.files[0]);
+    } else {
+        setInvoiceFile(null);
+    }
   };
 
   const handleSelectChange = (value: PaymentStatus) => {
@@ -119,6 +136,7 @@ const SilageSales: React.FC = () => {
         { key: 'paid_amount', label: 'Paid Amount' },
         { key: 'payment_status', label: 'Payment Status' },
         { key: 'address', label: 'Address' },
+        { key: 'invoice_pdf_url', label: 'Invoice PDF URL' },
     ] as const;
 
     const dataToExport = filteredSales.map(sale => ({
@@ -178,6 +196,7 @@ const SilageSales: React.FC = () => {
                   <th scope="col" className="px-6 py-3 text-right">Total Amount</th>
                   <th scope="col" className="px-6 py-3 text-right">Paid Amount</th>
                   <th scope="col" className="px-6 py-3">Address</th>
+                  <th scope="col" className="px-6 py-3">Invoice PDF</th>
                   <th scope="col" className="px-6 py-3 text-center">Actions</th>
                 </tr>
               </thead>
@@ -201,6 +220,15 @@ const SilageSales: React.FC = () => {
                     <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.total_amount)}</td>
                     <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.paid_amount)}</td>
                     <td className="px-6 py-4 truncate max-w-xs">{sale.address}</td>
+                    <td className="px-6 py-4">
+                      {sale.invoice_pdf_url ? (
+                        <a href={sale.invoice_pdf_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                          <FileText className="h-4 w-4" /> View
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-center">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -285,12 +313,28 @@ const SilageSales: React.FC = () => {
                     </SelectContent>
                 </Select>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="invoice_pdf" className="text-right">Invoice PDF</Label>
+              <Input id="invoice_pdf" name="invoice_pdf" type="file" accept="application/pdf" onChange={handleFileChange} className="col-span-3 file:text-primary file:font-semibold" />
+            </div>
+            {currentSale?.invoice_pdf_url && !invoiceFile && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <div className="col-start-2 col-span-3">
+                        <a href={currentSale.invoice_pdf_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                           <FileText className="h-4 w-4" /> View current invoice
+                        </a>
+                        <p className="text-xs text-gray-500">To replace, choose a new file above.</p>
+                    </div>
+                </div>
+            )}
           </div>
           <DialogFooter>
             <DialogClose asChild>
-                <Button type="button" variant="secondary">Cancel</Button>
+                <Button type="button" variant="secondary" disabled={isSubmitting}>Cancel</Button>
             </DialogClose>
-            <Button type="submit" onClick={handleSave}>Save changes</Button>
+            <Button type="submit" onClick={handleSave} disabled={isSubmitting}>
+                {isSubmitting ? 'Saving...' : 'Save changes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -20,22 +20,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const navigate = useNavigate();
 
     useEffect(() => {
-        const getSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        };
-        getSession();
-
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setLoading(true);
+        
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
             setLoading(false);
         });
 
         return () => {
-            authListener.subscription.unsubscribe();
+            subscription?.unsubscribe();
         };
     }, []);
 
@@ -46,7 +40,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const logout = async () => {
-        await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error('Error signing out:', error);
+        }
         navigate('/login', { replace: true });
     };
 
