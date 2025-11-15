@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Bell, User, LogOut } from 'lucide-react';
+import { Search, Bell, User, LogOut, Menu, Leaf } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -11,13 +11,28 @@ import {
   DropdownMenuTrigger,
 } from '../ui/DropdownMenu';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+    onMenuClick: () => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     const { user, logout } = useAuth();
 
     return (
-        <header className="bg-white border-b sticky top-0 z-10">
+        <header className="bg-white border-b sticky top-0 z-20">
             <div className="flex items-center justify-between h-16 px-4 md:px-8">
-                <div className="relative flex-1 max-w-md">
+                <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" className="lg:hidden rounded-full" onClick={onMenuClick}>
+                        <span className="sr-only">Open menu</span>
+                        <Menu className="h-6 w-6" />
+                    </Button>
+                    <div className="flex items-center lg:hidden">
+                        <Leaf className="h-6 w-6 text-primary" />
+                        <h1 className="ml-2 text-xl font-bold">SURYASAKSHI</h1>
+                    </div>
+                </div>
+
+                <div className="hidden lg:block relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                         type="search"
@@ -25,7 +40,8 @@ const Header: React.FC = () => {
                         className="w-full pl-10 pr-4 py-2 rounded-lg border bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                 </div>
-                <div className="flex items-center space-x-4 ml-4">
+
+                <div className="flex items-center space-x-2 sm:space-x-4">
                     <Button variant="ghost" size="icon" className="rounded-full">
                         <Bell className="h-6 w-6 text-gray-600" />
                     </Button>
